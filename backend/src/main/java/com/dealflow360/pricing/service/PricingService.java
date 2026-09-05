@@ -7,6 +7,7 @@ import com.dealflow360.pricing.dto.PriceListItemRequest;
 import com.dealflow360.pricing.dto.PriceListItemResponse;
 import com.dealflow360.pricing.dto.PriceListRequest;
 import com.dealflow360.pricing.dto.PriceListResponse;
+import com.dealflow360.pricing.model.CustomerTier;
 import com.dealflow360.pricing.model.PriceList;
 import com.dealflow360.pricing.repository.CustomerTierRepository;
 import com.dealflow360.pricing.repository.PriceListRepository;
@@ -39,14 +40,18 @@ public class PricingService {
 
     @Transactional
     public CustomerTierResponse createTier(long companyId, CustomerTierRequest request) {
-        return CustomerTierResponse.from(tierRepository.insert(
+        CustomerTier tier = tierRepository.insert(
                 companyId,
                 request.name().trim(),
                 request.defaultDiscountLimit(),
-                request.active() == null || request.active()));
+                request.active() == null || request.active());
+        ensureDefaultPriceList(companyId, tier);
+        return CustomerTierResponse.from(tier);
     }
 
+    @Transactional
     public List<PriceListResponse> listPriceLists(long companyId) {
+        ensureDefaultPriceLists(companyId);
         return priceListRepository.findByCompany(companyId).stream()
                 .map(list -> PriceListResponse.from(list, priceListRepository.findItems(list.id(), companyId)))
                 .toList();
@@ -79,5 +84,18 @@ public class PricingService {
 
     private void requireTier(long companyId, long tierId) {
         tierRepository.findById(tierId, companyId).orElseThrow(() -> new NotFoundException("Customer tier not found"));
+    }
+
+    private void ensureDefaultPriceLists(long companyId) {
+        for (CustomerTier tier : tierRepository.findByCompany(companyId)) {
+            ensureDefaultPriceList(companyId, tier);
+        }
+    }
+
+    private void ensureDefaultPriceList(long companyId, CustomerTier tier) {
+        if (!priceListRepository.findByTier(companyId, tier.id()).isEmpty()) {
+            return;
+        }
+        priceListRepository.insert(companyId, tier.name() + " INR", "INR", tier.id(), true);
     }
 }

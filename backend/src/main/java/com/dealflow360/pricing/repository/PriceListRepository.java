@@ -33,6 +33,10 @@ public class PriceListRepository {
             """;
     private static final String FIND_BY_ID = SELECT + " WHERE id = ? AND company_id = ?";
     private static final String FIND_BY_COMPANY = SELECT + " WHERE company_id = ? ORDER BY name";
+    private static final String FIND_BY_TIER =
+            SELECT + " WHERE company_id = ? AND customer_tier_id = ? ORDER BY name";
+    private static final String FIND_ACTIVE_BY_TIER =
+            SELECT + " WHERE company_id = ? AND customer_tier_id = ? AND active = 1 ORDER BY name LIMIT 1";
     private static final String UPSERT_ITEM =
             """
             INSERT INTO price_list_items (price_list_id, product_id, price)
@@ -46,6 +50,13 @@ public class PriceListRepository {
             JOIN price_lists pl ON pl.id = i.price_list_id
             WHERE i.price_list_id = ? AND pl.company_id = ?
             ORDER BY i.product_id
+            """;
+    private static final String FIND_ITEM =
+            """
+            SELECT i.price_list_id, i.product_id, i.price
+            FROM price_list_items i
+            JOIN price_lists pl ON pl.id = i.price_list_id
+            WHERE i.price_list_id = ? AND i.product_id = ? AND pl.company_id = ?
             """;
 
     private final DataSource dataSource;
@@ -98,6 +109,43 @@ public class PriceListRepository {
         }
     }
 
+    public Optional<PriceList> findActiveByCompanyAndTier(long companyId, long customerTierId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_ACTIVE_BY_TIER)) {
+            statement.setLong(1, companyId);
+            statement.setLong(2, customerTierId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(map(resultSet));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public List<PriceList> findByTier(long companyId, long customerTierId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_BY_TIER)) {
+            statement.setLong(1, companyId);
+            statement.setLong(2, customerTierId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<PriceList> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    rows.add(map(resultSet));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
     public List<PriceList> findByCompany(long companyId) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(FIND_BY_COMPANY)) {
@@ -131,6 +179,25 @@ public class PriceListRepository {
         }
     }
 
+    public Optional<PriceListItem> findItem(long priceListId, long productId, long companyId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_ITEM)) {
+            statement.setLong(1, priceListId);
+            statement.setLong(2, productId);
+            statement.setLong(3, companyId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(mapItem(resultSet));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
     public List<PriceListItem> findItems(long priceListId, long companyId) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(FIND_ITEMS)) {
@@ -139,10 +206,7 @@ public class PriceListRepository {
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<PriceListItem> rows = new ArrayList<>();
                 while (resultSet.next()) {
-                    rows.add(new PriceListItem(
-                            resultSet.getLong("price_list_id"),
-                            resultSet.getLong("product_id"),
-                            resultSet.getBigDecimal("price")));
+                    rows.add(mapItem(resultSet));
                 }
                 return rows;
             }
@@ -151,6 +215,13 @@ public class PriceListRepository {
         } finally {
             DataSourceUtils.releaseConnection(connection, dataSource);
         }
+    }
+
+    private static PriceListItem mapItem(ResultSet resultSet) throws SQLException {
+        return new PriceListItem(
+                resultSet.getLong("price_list_id"),
+                resultSet.getLong("product_id"),
+                resultSet.getBigDecimal("price"));
     }
 
     private static PriceList map(ResultSet resultSet) throws SQLException {

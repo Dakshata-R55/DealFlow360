@@ -11,7 +11,9 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Repository;
@@ -25,14 +27,13 @@ public class UpsellRuleRepository {
               company_id, trigger_product_id, suggested_product_id, score, promotion_boost, min_margin_pct, active
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """;
-    private static final String FIND_BY_COMPANY =
+    private static final String SELECT =
             """
             SELECT id, company_id, trigger_product_id, suggested_product_id, score, promotion_boost, min_margin_pct,
                    active, created_at, updated_at
             FROM upsell_rules
-            WHERE company_id = ?
-            ORDER BY id
             """;
+    private static final String FIND_BY_COMPANY = SELECT + " WHERE company_id = ? ORDER BY id";
 
     private final DataSource dataSource;
 
@@ -78,6 +79,34 @@ public class UpsellRuleRepository {
             if (ex.getErrorCode() == 1062) {
                 throw new ConflictException("Upsell rule already exists");
             }
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public List<UpsellRule> findActiveByCompanyAndTriggerIds(long companyId, Collection<Long> triggerIds) {
+        if (triggerIds == null || triggerIds.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = triggerIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        String sql = SELECT + " WHERE company_id = ? AND active = 1 AND trigger_product_id IN (" + placeholders
+                + ") ORDER BY id";
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, companyId);
+            int index = 2;
+            for (Long triggerId : triggerIds) {
+                statement.setLong(index++, triggerId);
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<UpsellRule> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    rows.add(map(resultSet));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {
             DataSourceUtils.releaseConnection(connection, dataSource);

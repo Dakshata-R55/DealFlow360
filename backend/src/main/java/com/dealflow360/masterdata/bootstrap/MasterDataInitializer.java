@@ -364,6 +364,8 @@ public class MasterDataInitializer implements ApplicationRunner {
         variantRepository.insert(companyId, laptop.id(), "Size", "16GB", new BigDecimal("8000.00"));
 
         PriceList goldList = priceListRepository.insert(companyId, "Gold INR", "INR", gold.id(), true);
+        priceListRepository.insert(companyId, "Bronze INR", "INR", bronze.id(), true);
+        priceListRepository.insert(companyId, "Silver INR", "INR", silver.id(), true);
         priceListRepository.upsertItem(goldList.id(), laptop.id(), new BigDecimal("110000.00"));
 
         discountPolicyRepository.insert(companyId, bronze.id(), null, new BigDecimal("5.0000"));
