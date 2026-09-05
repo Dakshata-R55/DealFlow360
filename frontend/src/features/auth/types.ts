@@ -66,9 +66,6 @@ export function homePath(role: UserRole | undefined): string {
   if (isCustomerUser(role)) {
     return '/customer'
   }
-  if (canAccessQuotations(role)) {
-    return '/quotations'
-  }
   return '/dashboard'
 }
 

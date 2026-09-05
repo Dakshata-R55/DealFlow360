@@ -197,14 +197,18 @@ export const isSellerCompanyList = isListOf(isSellerCompany)
 export const isPublicProductList = isListOf(isPublicProduct)
 export const isQuoteRequestList = isListOf(isQuoteRequest)
 
-export function priceLabel(product: PublicProduct): string {
+export function priceAmountLabel(product: PublicProduct): string {
   const amount = product.indicativePrice.toLocaleString('en-IN', {
     maximumFractionDigits: 0,
   })
   if (product.billingType === 'RECURRING') {
-    return `MRP ₹${amount} / month`
+    return `₹${amount} / month`
   }
-  return `MRP ₹${amount}`
+  return `₹${amount}`
+}
+
+export function priceLabel(product: PublicProduct): string {
+  return `MRP ${priceAmountLabel(product)}`
 }
 
 export function rupee(value: number): string {

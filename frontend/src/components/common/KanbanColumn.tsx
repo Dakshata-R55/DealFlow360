@@ -51,7 +51,7 @@ export function KanbanColumn({
         {title}
         <span>{count}</span>
       </h3>
-      {children}
+      <div className="kanban-lane">{children}</div>
     </section>
   )
 }

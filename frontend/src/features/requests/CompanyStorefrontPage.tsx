@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Modal } from '../../components/common/Modal'
 import { Panel } from '../../components/common/Panel'
 import { useGetCompanyProductsQuery, useGetCompanyQuery } from '../../stores/api/marketplaceApi'
 import {
@@ -8,7 +9,7 @@ import {
   useGetCustomerRequestsQuery,
 } from '../../stores/api/quoteRequestApi'
 import { apiErrorMessage } from '../../types/api'
-import { percentLabel, priceLabel, type PublicProduct, type QuoteRequest } from './types'
+import { percentLabel, priceAmountLabel, type PublicProduct, type QuoteRequest } from './types'
 
 export function CompanyStorefrontPage() {
   const { companyId } = useParams()
@@ -43,7 +44,7 @@ export function CompanyStorefrontPage() {
       return
     }
     try {
-      const draft = await createRequest({ sellerCompanyId: id }).unwrap()
+      const draft = thisDraft ?? (await createRequest({ sellerCompanyId: id }).unwrap())
       const quantity = qty[product.id] ?? 1
       await addLine({ requestId: draft.id, body: { productId: product.id, quantity } }).unwrap()
       setPendingProduct(null)
@@ -90,40 +91,47 @@ export function CompanyStorefrontPage() {
       ) : null}
       <Panel title="Catalog">
         {products.isLoading ? <p className="muted">Loading products…</p> : null}
-        <div className="recs">
+        {(products.data ?? []).length === 0 && products.isSuccess ? (
+          <p className="muted">No products in this catalog yet.</p>
+        ) : null}
+        <div className="catalog-grid">
           {(products.data ?? []).map((product) => (
-            <article key={product.id} className="rec-card">
+            <article key={product.id} className="catalog-card">
               <h3>{product.name}</h3>
-              <p className="muted">
+              <p className="catalog-meta">
                 {product.categoryName} · {product.unit}
               </p>
-              <p>{product.description}</p>
-              <p className="quote-card-amount">{priceLabel(product)}</p>
+              <p className="catalog-desc">{product.description}</p>
+              <p className="catalog-mrp">
+                <strong>MRP</strong> {priceAmountLabel(product)}
+              </p>
               {product.categoryDiscountPercent > 0 ? (
                 <p className="ok-text">
                   Up to {percentLabel(product.categoryDiscountPercent)} off on {product.categoryName}
                 </p>
               ) : null}
-              <div className="qty-stepper">
+              <div className="catalog-qty">
                 <button
-                  className="button"
+                  className="catalog-qty-btn"
                   type="button"
+                  aria-label={`Decrease ${product.name} quantity`}
                   onClick={() =>
                     setQty((current) => ({ ...current, [product.id]: Math.max(1, (current[product.id] ?? 1) - 1) }))
                   }
                 >
-                  -
+                  −
                 </button>
-                <span>{qty[product.id] ?? 1}</span>
+                <span className="catalog-qty-value">{qty[product.id] ?? 1}</span>
                 <button
-                  className="button"
+                  className="catalog-qty-btn"
                   type="button"
+                  aria-label={`Increase ${product.name} quantity`}
                   onClick={() => setQty((current) => ({ ...current, [product.id]: (current[product.id] ?? 1) + 1 }))}
                 >
                   +
                 </button>
               </div>
-              <button className="button" type="button" onClick={() => void addProduct(product, false)}>
+              <button className="catalog-add" type="button" onClick={() => void addProduct(product, false)}>
                 Add to Request
               </button>
             </article>
@@ -146,7 +154,7 @@ function SwitchSellerModal({
   onStartNew: () => void
 }) {
   return (
-    <Panel title="Start a new request?">
+    <Modal title="Start a new request?" onClose={onCancel}>
       <p>
         You currently have a request for {other.sellerCompanyName}. Start a new request for {companyName}?
       </p>
@@ -154,10 +162,7 @@ function SwitchSellerModal({
         <button className="button" type="button" onClick={onStartNew}>
           Start New Request
         </button>
-        <button className="link" type="button" onClick={onCancel}>
-          Cancel
-        </button>
       </div>
-    </Panel>
+    </Modal>
   )
 }

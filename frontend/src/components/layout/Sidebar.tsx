@@ -50,6 +50,11 @@ export function Sidebar() {
             </NavLink>
           </>
         ) : null}
+        {customer ? null : (
+          <NavLink to="/dashboard" className={linkClass}>
+            Dashboard
+          </NavLink>
+        )}
         {sales ? (
           <>
             <NavLink to="/quotations" className={linkClass}>
@@ -61,11 +66,6 @@ export function Sidebar() {
               </NavLink>
             ) : null}
           </>
-        ) : null}
-        {admin ? (
-          <NavLink to="/dashboard" className={linkClass}>
-            Dashboard
-          </NavLink>
         ) : null}
         {admin ? (
           <>

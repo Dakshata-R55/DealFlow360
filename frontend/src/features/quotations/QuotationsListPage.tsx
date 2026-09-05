@@ -272,7 +272,7 @@ export function QuotationsListPage() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack board-page">
       {canCreate ? (
         <Panel title="Board">
           <form className="form" onSubmit={onCreate}>
@@ -307,7 +307,7 @@ export function QuotationsListPage() {
         </Panel>
       )}
 
-      <Panel title="Pipeline">
+      <Panel title="Pipeline" className="board-pipeline">
         <div className="board-toolbar">
           <label className="field">
             Search

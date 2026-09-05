@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { useAppSelector } from '../../stores/hooks'
 import { initials } from '../common/initials'
+import { CompanySearch } from './CompanySearch'
 import { Sidebar } from './Sidebar'
 
 function titleForPath(pathname: string) {
@@ -52,12 +53,19 @@ function titleForPath(pathname: string) {
 export function AppLayout() {
   const location = useLocation()
   const user = useAppSelector((state) => state.auth.user)
+  const dashboard = location.pathname.startsWith('/dashboard')
+  const fillHeight = dashboard || location.pathname.startsWith('/quotations')
 
   return (
     <div className="app-frame">
       <Sidebar />
-      <div className="workspace">
+      <div
+        className={
+          dashboard ? 'workspace workspace-fill workspace-dash' : fillHeight ? 'workspace workspace-fill' : 'workspace'
+        }
+      >
         <header className="topbar">
+          <CompanySearch />
           {user ? (
             <div className="topbar-user">
               <span className="avatar">{initials(user.name)}</span>
@@ -71,7 +79,9 @@ export function AppLayout() {
           ) : null}
         </header>
         <main className="workspace-main">
-          <h1 className="page-title">{titleForPath(location.pathname)}</h1>
+          {location.pathname.startsWith('/dashboard') ? null : (
+            <h1 className="page-title">{titleForPath(location.pathname)}</h1>
+          )}
           <Outlet />
         </main>
       </div>

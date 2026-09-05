@@ -9,6 +9,7 @@ import './api/quotationApi'
 import './api/marketplaceApi'
 import './api/quoteRequestApi'
 import './api/fulfillmentApi'
+import './api/dashboardApi'
 
 export const store = configureStore({
   reducer: {
