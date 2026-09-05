@@ -10,6 +10,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceUtils;
@@ -36,6 +38,15 @@ public class UserRepository {
             WHERE email = ?
             """;
     private static final String EXISTS_BY_EMAIL = "SELECT 1 FROM users WHERE email = ? LIMIT 1";
+    private static final String FIND_ACTIVE_SALES_BY_COMPANY =
+            """
+            SELECT id, company_id, name, email, password_hash, role, active, created_at, updated_at
+            FROM users
+            WHERE company_id = ?
+              AND active = 1
+              AND role IN ('SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS')
+            ORDER BY name, id
+            """;
 
     private final DataSource dataSource;
 
@@ -106,6 +117,24 @@ public class UserRepository {
                     return Optional.empty();
                 }
                 return Optional.of(map(resultSet));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public List<User> findActiveSalesByCompany(long companyId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_ACTIVE_SALES_BY_COMPANY)) {
+            statement.setLong(1, companyId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<User> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    rows.add(map(resultSet));
+                }
+                return rows;
             }
         } catch (SQLException ex) {
             throw new RuntimeException(ex);

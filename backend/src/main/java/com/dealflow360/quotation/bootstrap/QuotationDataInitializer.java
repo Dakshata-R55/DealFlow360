@@ -68,6 +68,8 @@ public class QuotationDataInitializer implements ApplicationRunner {
               created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
               updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               submitted_at TIMESTAMP NULL,
+              manager_approved_at TIMESTAMP NULL,
+              finance_approved_at TIMESTAMP NULL,
               PRIMARY KEY (id),
               UNIQUE KEY uk_quotations_company_number (company_id, quote_number),
               CONSTRAINT fk_quotations_company FOREIGN KEY (company_id) REFERENCES companies (id),
@@ -144,6 +146,16 @@ public class QuotationDataInitializer implements ApplicationRunner {
         log.info("Quotation schema ready.");
     }
 
+    private static void addColumnIgnoreDuplicate(Statement statement, String sql) throws SQLException {
+        try {
+            statement.execute(sql);
+        } catch (SQLException ex) {
+            if (ex.getErrorCode() != 1060) {
+                throw ex;
+            }
+        }
+    }
+
     private void createTables() {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (Statement statement = connection.createStatement()) {
@@ -151,6 +163,8 @@ public class QuotationDataInitializer implements ApplicationRunner {
             statement.execute(QUOTATIONS_SQL);
             statement.execute(LINES_SQL);
             statement.execute(DISMISSALS_SQL);
+            addColumnIgnoreDuplicate(statement, "ALTER TABLE quotations ADD COLUMN manager_approved_at TIMESTAMP NULL");
+            addColumnIgnoreDuplicate(statement, "ALTER TABLE quotations ADD COLUMN finance_approved_at TIMESTAMP NULL");
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {

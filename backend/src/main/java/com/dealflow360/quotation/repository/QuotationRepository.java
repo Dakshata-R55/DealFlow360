@@ -38,7 +38,8 @@ public class QuotationRepository {
             """
             SELECT id, company_id, quote_number, customer_id, sales_rep_id, price_list_id, status,
                    subtotal, discount_amount, total_amount, total_cost, margin_amount, margin_percent,
-                   risk_score, risk_level, created_at, updated_at, submitted_at
+                   risk_score, risk_level, created_at, updated_at, submitted_at,
+                   manager_approved_at, finance_approved_at
             FROM quotations
             """;
     private static final String FIND_BY_ID = SELECT + " WHERE id = ? AND company_id = ?";
@@ -54,6 +55,18 @@ public class QuotationRepository {
             """
             UPDATE quotations
             SET status = ?, submitted_at = ?, risk_score = ?, risk_level = ?
+            WHERE id = ? AND company_id = ?
+            """;
+    private static final String UPDATE_APPROVAL =
+            """
+            UPDATE quotations
+            SET manager_approved_at = ?, finance_approved_at = ?
+            WHERE id = ? AND company_id = ?
+            """;
+    private static final String UPDATE_SALES_REP =
+            """
+            UPDATE quotations
+            SET sales_rep_id = ?
             WHERE id = ? AND company_id = ?
             """;
     private static final String ASSIGN_QUOTE_NUMBER =
@@ -209,6 +222,46 @@ public class QuotationRepository {
         }
     }
 
+    public Optional<Quotation> updateApproval(
+            long id, long companyId, Instant managerApprovedAt, Instant financeApprovedAt) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE_APPROVAL)) {
+            if (managerApprovedAt == null) {
+                statement.setNull(1, Types.TIMESTAMP);
+            } else {
+                statement.setTimestamp(1, Timestamp.from(managerApprovedAt));
+            }
+            if (financeApprovedAt == null) {
+                statement.setNull(2, Types.TIMESTAMP);
+            } else {
+                statement.setTimestamp(2, Timestamp.from(financeApprovedAt));
+            }
+            statement.setLong(3, id);
+            statement.setLong(4, companyId);
+            statement.executeUpdate();
+            return findById(id, companyId);
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public Optional<Quotation> updateSalesRep(long id, long companyId, long salesRepId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE_SALES_REP)) {
+            statement.setLong(1, salesRepId);
+            statement.setLong(2, id);
+            statement.setLong(3, companyId);
+            statement.executeUpdate();
+            return findById(id, companyId);
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
     public void insertDismissal(long quotationId, long productId) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(INSERT_DISMISSAL)) {
@@ -259,7 +312,9 @@ public class QuotationRepository {
                 RiskLevel.valueOf(resultSet.getString("risk_level")),
                 instant(resultSet, "created_at"),
                 instant(resultSet, "updated_at"),
-                nullableInstant(resultSet, "submitted_at"));
+                nullableInstant(resultSet, "submitted_at"),
+                nullableInstant(resultSet, "manager_approved_at"),
+                nullableInstant(resultSet, "finance_approved_at"));
     }
 
     private static Instant instant(ResultSet resultSet, String column) throws SQLException {

@@ -1,6 +1,7 @@
 package com.dealflow360.quoterequest.dto;
 
 import com.dealflow360.quoterequest.model.QuoteRequestStatus;
+import com.dealflow360.quotation.model.QuotationStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,7 +17,6 @@ public record QuoteRequestResponse(
         QuoteRequestStatus status,
         String statusLabel,
         LocalDate requestedDeliveryDate,
-        BigDecimal targetBudget,
         BigDecimal expectedDiscountPercent,
         String notes,
         Long quotationId,
@@ -27,4 +27,6 @@ public record QuoteRequestResponse(
         BigDecimal catalogMrpTotal,
         BigDecimal indicativeTotal,
         BigDecimal expectedTotal,
+        QuotationStatus quotationStatus,
+        BigDecimal quotationTotal,
         List<QuoteRequestLineResponse> lines) {}

@@ -28,13 +28,13 @@ public class QuoteRequestRepository {
             """
             INSERT INTO quote_requests (
               request_number, customer_user_id, seller_company_id, status,
-              requested_delivery_date, target_budget, expected_discount_percent, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              requested_delivery_date, expected_discount_percent, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """;
     private static final String SELECT =
             """
             SELECT id, request_number, customer_user_id, seller_company_id, status,
-                   requested_delivery_date, target_budget, expected_discount_percent, notes, quotation_id,
+                   requested_delivery_date, expected_discount_percent, notes, quotation_id,
                    created_at, updated_at, submitted_at
             FROM quote_requests
             """;
@@ -49,8 +49,14 @@ public class QuoteRequestRepository {
     private static final String PATCH =
             """
             UPDATE quote_requests
-            SET requested_delivery_date = ?, target_budget = ?, expected_discount_percent = ?, notes = ?
+            SET requested_delivery_date = ?, expected_discount_percent = ?, notes = ?
             WHERE id = ? AND customer_user_id = ? AND status = 'DRAFT'
+            """;
+    private static final String UPDATE_EXPECTED =
+            """
+            UPDATE quote_requests
+            SET expected_discount_percent = ?
+            WHERE id = ?
             """;
     private static final String UPDATE_STATUS =
             """
@@ -95,8 +101,7 @@ public class QuoteRequestRepository {
             statement.setString(4, QuoteRequestStatus.DRAFT.name());
             statement.setNull(5, Types.DATE);
             statement.setNull(6, Types.DECIMAL);
-            statement.setNull(7, Types.DECIMAL);
-            statement.setString(8, "");
+            statement.setString(7, "");
             statement.executeUpdate();
             try (ResultSet keys = statement.getGeneratedKeys()) {
                 if (!keys.next()) {
@@ -144,7 +149,6 @@ public class QuoteRequestRepository {
             long id,
             long customerUserId,
             LocalDate requestedDeliveryDate,
-            BigDecimal targetBudget,
             BigDecimal expectedDiscountPercent,
             String notes) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
@@ -154,20 +158,32 @@ public class QuoteRequestRepository {
             } else {
                 statement.setDate(1, Date.valueOf(requestedDeliveryDate));
             }
-            if (targetBudget == null) {
+            if (expectedDiscountPercent == null) {
                 statement.setNull(2, Types.DECIMAL);
             } else {
-                statement.setBigDecimal(2, targetBudget);
+                statement.setBigDecimal(2, expectedDiscountPercent);
             }
-            if (expectedDiscountPercent == null) {
-                statement.setNull(3, Types.DECIMAL);
-            } else {
-                statement.setBigDecimal(3, expectedDiscountPercent);
-            }
-            statement.setString(4, notes == null ? "" : notes);
-            statement.setLong(5, id);
-            statement.setLong(6, customerUserId);
+            statement.setString(3, notes == null ? "" : notes);
+            statement.setLong(4, id);
+            statement.setLong(5, customerUserId);
             return statement.executeUpdate() == 1;
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public void updateExpectedDiscount(long id, BigDecimal expectedDiscountPercent) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE_EXPECTED)) {
+            if (expectedDiscountPercent == null) {
+                statement.setNull(1, Types.DECIMAL);
+            } else {
+                statement.setBigDecimal(1, expectedDiscountPercent);
+            }
+            statement.setLong(2, id);
+            statement.executeUpdate();
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {
@@ -245,7 +261,6 @@ public class QuoteRequestRepository {
                 resultSet.getLong("seller_company_id"),
                 QuoteRequestStatus.valueOf(resultSet.getString("status")),
                 delivery == null ? null : delivery.toLocalDate(),
-                resultSet.getBigDecimal("target_budget"),
                 resultSet.getBigDecimal("expected_discount_percent"),
                 resultSet.getString("notes"),
                 quotationId,

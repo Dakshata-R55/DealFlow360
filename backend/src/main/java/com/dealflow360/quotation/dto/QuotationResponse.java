@@ -15,6 +15,7 @@ public record QuotationResponse(
         long customerTierId,
         String customerTierName,
         long salesRepId,
+        String salesRepName,
         long priceListId,
         String priceListName,
         QuotationStatus status,
@@ -31,10 +32,11 @@ public record QuotationResponse(
         Instant createdAt,
         Instant updatedAt,
         Instant submittedAt,
+        Instant managerApprovedAt,
+        Instant financeApprovedAt,
         List<QuotationLineResponse> lines,
         String sourceRequestNumber,
-        BigDecimal customerExpectedDiscountPercent,
-        BigDecimal customerTargetBudget) {
+        BigDecimal customerExpectedDiscountPercent) {
 
     public record LikelyRoute(boolean requiresManager, boolean requiresFinance) {}
 
@@ -43,12 +45,12 @@ public record QuotationResponse(
             String customerName,
             long customerTierId,
             String customerTierName,
+            String salesRepName,
             String priceListName,
             LikelyRoute likelyRoute,
             List<QuotationLineResponse> lines,
             String sourceRequestNumber,
-            BigDecimal customerExpectedDiscountPercent,
-            BigDecimal customerTargetBudget) {
+            BigDecimal customerExpectedDiscountPercent) {
         BigDecimal maxLineExcess = BigDecimal.ZERO;
         for (QuotationLineResponse line : lines) {
             if (line.excess().compareTo(maxLineExcess) > 0) {
@@ -63,6 +65,7 @@ public record QuotationResponse(
                 customerTierId,
                 customerTierName,
                 quotation.salesRepId(),
+                salesRepName,
                 quotation.priceListId(),
                 priceListName,
                 quotation.status(),
@@ -79,9 +82,10 @@ public record QuotationResponse(
                 quotation.createdAt(),
                 quotation.updatedAt(),
                 quotation.submittedAt(),
+                quotation.managerApprovedAt(),
+                quotation.financeApprovedAt(),
                 lines,
                 sourceRequestNumber,
-                customerExpectedDiscountPercent,
-                customerTargetBudget);
+                customerExpectedDiscountPercent);
     }
 }

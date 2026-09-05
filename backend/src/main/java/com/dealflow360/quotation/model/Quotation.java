@@ -22,4 +22,6 @@ public record Quotation(
         RiskLevel riskLevel,
         Instant createdAt,
         Instant updatedAt,
-        Instant submittedAt) {}
+        Instant submittedAt,
+        Instant managerApprovedAt,
+        Instant financeApprovedAt) {}

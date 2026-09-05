@@ -18,6 +18,8 @@ import com.dealflow360.pricing.repository.CustomerTierRepository;
 import com.dealflow360.quotation.dto.AddQuotationLineRequest;
 import com.dealflow360.quotation.dto.CreateQuotationRequest;
 import com.dealflow360.quotation.dto.QuotationResponse;
+import com.dealflow360.quotation.model.Quotation;
+import com.dealflow360.quotation.repository.QuotationRepository;
 import com.dealflow360.quotation.service.QuotePricingService;
 import com.dealflow360.quotation.service.QuotationService;
 import com.dealflow360.quotation.service.RiskEngine;
@@ -61,6 +63,7 @@ public class QuoteRequestService {
     private final CustomerRepository customerRepository;
     private final CustomerTierRepository customerTierRepository;
     private final QuotationService quotationService;
+    private final QuotationRepository quotationRepository;
     private final QuotePricingService quotePricingService;
     private final RiskEngine riskEngine;
 
@@ -75,6 +78,7 @@ public class QuoteRequestService {
             CustomerRepository customerRepository,
             CustomerTierRepository customerTierRepository,
             QuotationService quotationService,
+            QuotationRepository quotationRepository,
             QuotePricingService quotePricingService,
             RiskEngine riskEngine) {
         this.quoteRequestRepository = quoteRequestRepository;
@@ -87,6 +91,7 @@ public class QuoteRequestService {
         this.customerRepository = customerRepository;
         this.customerTierRepository = customerTierRepository;
         this.quotationService = quotationService;
+        this.quotationRepository = quotationRepository;
         this.quotePricingService = quotePricingService;
         this.riskEngine = riskEngine;
     }
@@ -121,7 +126,6 @@ public class QuoteRequestService {
                 request.id(),
                 customerUserId,
                 body.requestedDeliveryDate(),
-                body.targetBudget(),
                 body.expectedDiscountPercent(),
                 body.notes());
         if (!updated) {
@@ -192,10 +196,28 @@ public class QuoteRequestService {
     @Transactional
     public QuoteRequestResponse cancel(long customerUserId, long requestId) {
         QuoteRequest request = requireOwned(customerUserId, requestId);
-        if (request.status() != QuoteRequestStatus.DRAFT && request.status() != QuoteRequestStatus.SUBMITTED) {
+        if (request.quotationId() != null) {
             throw new ConflictException("This request can no longer be cancelled");
         }
-        quoteRequestRepository.updateStatus(request.id(), QuoteRequestStatus.CANCELLED, request.submittedAt(), request.quotationId());
+        if (request.status() != QuoteRequestStatus.DRAFT
+                && request.status() != QuoteRequestStatus.SUBMITTED
+                && request.status() != QuoteRequestStatus.UNDER_REVIEW) {
+            throw new ConflictException("This request can no longer be cancelled");
+        }
+        quoteRequestRepository.updateStatus(request.id(), QuoteRequestStatus.CANCELLED, request.submittedAt(), null);
+        return toResponse(requireOwned(customerUserId, requestId));
+    }
+
+    @Transactional
+    public QuoteRequestResponse withdraw(long customerUserId, long requestId) {
+        QuoteRequest request = requireOwned(customerUserId, requestId);
+        if (request.quotationId() != null) {
+            throw new ConflictException("The seller already opened a quotation");
+        }
+        if (request.status() != QuoteRequestStatus.SUBMITTED && request.status() != QuoteRequestStatus.UNDER_REVIEW) {
+            throw new ConflictException("Only a submitted request can be pulled back to draft");
+        }
+        quoteRequestRepository.updateStatus(request.id(), QuoteRequestStatus.DRAFT, null, null);
         return toResponse(requireOwned(customerUserId, requestId));
     }
 
@@ -347,6 +369,9 @@ public class QuoteRequestService {
             indicativeTotal = indicativeTotal.add(mapped.indicativeLineTotal());
             expectedTotal = expectedTotal.add(mapped.expectedLineTotal());
         }
+        Quotation linked = request.quotationId() == null
+                ? null
+                : quotationRepository.findById(request.quotationId(), request.sellerCompanyId()).orElse(null);
         return new QuoteRequestResponse(
                 request.id(),
                 request.requestNumber(),
@@ -357,7 +382,6 @@ public class QuoteRequestService {
                 request.status(),
                 statusLabel(request.status()),
                 request.requestedDeliveryDate(),
-                request.targetBudget(),
                 request.expectedDiscountPercent(),
                 request.notes(),
                 request.quotationId(),
@@ -368,6 +392,8 @@ public class QuoteRequestService {
                 money(catalogMrpTotal),
                 money(indicativeTotal),
                 money(expectedTotal),
+                linked == null ? null : linked.status(),
+                linked == null ? null : linked.totalAmount(),
                 lines);
     }
 

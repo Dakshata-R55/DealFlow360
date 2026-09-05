@@ -36,7 +36,6 @@ public class QuoteRequestDataInitializer implements ApplicationRunner {
               seller_company_id BIGINT NOT NULL,
               status VARCHAR(32) NOT NULL,
               requested_delivery_date DATE NULL,
-              target_budget DECIMAL(14,2) NULL,
               expected_discount_percent DECIMAL(7,4) NULL,
               notes VARCHAR(2000) NOT NULL DEFAULT '',
               quotation_id BIGINT NULL,
@@ -109,6 +108,7 @@ public class QuoteRequestDataInitializer implements ApplicationRunner {
             addColumnIgnoreDuplicate(
                     statement,
                     "ALTER TABLE quote_request_lines ADD COLUMN expected_discount_percent DECIMAL(7,4) NULL");
+            dropColumnIgnoreMissing(statement, "ALTER TABLE quote_requests DROP COLUMN target_budget");
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {
@@ -122,6 +122,16 @@ public class QuoteRequestDataInitializer implements ApplicationRunner {
             statement.execute(sql);
         } catch (SQLException ex) {
             if (ex.getErrorCode() != 1060) {
+                throw ex;
+            }
+        }
+    }
+
+    private static void dropColumnIgnoreMissing(Statement statement, String sql) throws SQLException {
+        try {
+            statement.execute(sql);
+        } catch (SQLException ex) {
+            if (ex.getErrorCode() != 1091) {
                 throw ex;
             }
         }

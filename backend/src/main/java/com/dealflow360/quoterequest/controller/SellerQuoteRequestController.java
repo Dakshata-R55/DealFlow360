@@ -45,7 +45,7 @@ public class SellerQuoteRequestController {
     }
 
     @PostMapping("/{id}/convert-to-quotation")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER')")
     public ResponseEntity<ApiResponse<QuotationResponse>> convert(
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = seller(authentication);

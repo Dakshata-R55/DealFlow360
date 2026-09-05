@@ -109,4 +109,12 @@ public class CustomerQuoteRequestController {
         return ResponseEntity.ok(
                 ApiResponse.success(HttpStatus.OK, quoteRequestService.cancel(principal.userId(), id)));
     }
+
+    @PostMapping("/{id}/withdraw")
+    public ResponseEntity<ApiResponse<QuoteRequestResponse>> withdraw(
+            Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = SecurityAuth.require(authentication);
+        return ResponseEntity.ok(
+                ApiResponse.success(HttpStatus.OK, quoteRequestService.withdraw(principal.userId(), id)));
+    }
 }

@@ -11,7 +11,6 @@ public record QuoteRequest(
         long sellerCompanyId,
         QuoteRequestStatus status,
         LocalDate requestedDeliveryDate,
-        BigDecimal targetBudget,
         BigDecimal expectedDiscountPercent,
         String notes,
         Long quotationId,

@@ -4,9 +4,11 @@ import com.dealflow360.auth.security.AuthPrincipal;
 import com.dealflow360.auth.security.SecurityAuth;
 import com.dealflow360.quotation.dto.AddQuotationLineRequest;
 import com.dealflow360.quotation.dto.CreateQuotationRequest;
+import com.dealflow360.quotation.dto.PatchAssigneeRequest;
 import com.dealflow360.quotation.dto.PatchQuotationLineRequest;
 import com.dealflow360.quotation.dto.QuotationResponse;
 import com.dealflow360.quotation.dto.RecommendationResponse;
+import com.dealflow360.quotation.dto.SalesUserResponse;
 import com.dealflow360.quotation.service.QuotationService;
 import com.dealflow360.shared.api.ApiResponse;
 import jakarta.validation.Valid;
@@ -41,8 +43,16 @@ public class QuotationController {
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, quotationService.list(SecurityAuth.requireCompany(principal))));
     }
 
+    @GetMapping("/sales-users")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<List<SalesUserResponse>>> salesUsers(Authentication authentication) {
+        AuthPrincipal principal = internal(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.listSalesUsers(SecurityAuth.requireCompany(principal))));
+    }
+
     @PostMapping
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> create(
             Authentication authentication, @Valid @RequestBody CreateQuotationRequest request) {
         AuthPrincipal principal = writer(authentication);
@@ -61,7 +71,7 @@ public class QuotationController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> saveDraft(
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
@@ -70,7 +80,7 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/lines")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> addLine(
             Authentication authentication,
             @PathVariable long id,
@@ -82,7 +92,7 @@ public class QuotationController {
     }
 
     @PatchMapping("/{id}/lines/{lineId}")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> updateLine(
             Authentication authentication,
             @PathVariable long id,
@@ -94,7 +104,7 @@ public class QuotationController {
     }
 
     @DeleteMapping("/{id}/lines/{lineId}")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> deleteLine(
             Authentication authentication, @PathVariable long id, @PathVariable long lineId) {
         AuthPrincipal principal = writer(authentication);
@@ -103,7 +113,7 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/evaluate")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> evaluate(
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
@@ -121,7 +131,7 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/recommendations/{productId}/dismiss")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<RecommendationResponse>>> dismiss(
             Authentication authentication, @PathVariable long id, @PathVariable long productId) {
         AuthPrincipal principal = writer(authentication);
@@ -130,11 +140,71 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/submit")
-    @PreAuthorize("hasAuthority('SALES_REP')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> submit(Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(
                 ApiResponse.success(HttpStatus.OK, quotationService.submit(SecurityAuth.requireCompany(principal), id)));
+    }
+
+    @PatchMapping("/{id}/assignee")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> assign(
+            Authentication authentication, @PathVariable long id, @Valid @RequestBody PatchAssigneeRequest request) {
+        AuthPrincipal principal = internal(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.assign(SecurityAuth.requireCompany(principal), id, request)));
+    }
+
+    @PostMapping("/{id}/reopen")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> reopen(Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = internal(authentication);
+        return ResponseEntity.ok(
+                ApiResponse.success(HttpStatus.OK, quotationService.reopen(SecurityAuth.requireCompany(principal), id)));
+    }
+
+    @PostMapping("/{id}/return-to-queue")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> returnToQueue(
+            Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = writer(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.returnToQueue(SecurityAuth.requireCompany(principal), id)));
+    }
+
+    @PostMapping("/{id}/return-to-pending")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> returnToPending(
+            Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = writer(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.returnToPending(SecurityAuth.requireCompany(principal), id)));
+    }
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasAnyAuthority('SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> approve(Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = internal(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.approve(SecurityAuth.requireCompany(principal), id, principal.role())));
+    }
+
+    @PostMapping("/{id}/negotiate")
+    @PreAuthorize("hasAnyAuthority('SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> negotiate(Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = internal(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.negotiate(SecurityAuth.requireCompany(principal), id, principal.role())));
+    }
+
+    @PostMapping("/{id}/confirm-credit")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> confirmCredit(
+            Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = internal(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.confirmCredit(SecurityAuth.requireCompany(principal), id)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

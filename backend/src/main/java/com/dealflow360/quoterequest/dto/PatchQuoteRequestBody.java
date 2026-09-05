@@ -7,6 +7,5 @@ import java.time.LocalDate;
 
 public record PatchQuoteRequestBody(
         LocalDate requestedDeliveryDate,
-        BigDecimal targetBudget,
         @DecimalMin("0") @DecimalMax("100") BigDecimal expectedDiscountPercent,
         String notes) {}
