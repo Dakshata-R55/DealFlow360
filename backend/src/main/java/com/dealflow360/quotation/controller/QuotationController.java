@@ -35,14 +35,14 @@ public class QuotationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<QuotationResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, quotationService.list(principal.companyId())));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<QuotationResponse>> create(
             Authentication authentication, @Valid @RequestBody CreateQuotationRequest request) {
         AuthPrincipal principal = writer(authentication);
@@ -53,7 +53,7 @@ public class QuotationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> get(Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
@@ -61,7 +61,7 @@ public class QuotationController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<QuotationResponse>> saveDraft(
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
@@ -70,7 +70,7 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/lines")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<QuotationResponse>> addLine(
             Authentication authentication,
             @PathVariable long id,
@@ -82,7 +82,7 @@ public class QuotationController {
     }
 
     @PatchMapping("/{id}/lines/{lineId}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<QuotationResponse>> updateLine(
             Authentication authentication,
             @PathVariable long id,
@@ -94,7 +94,7 @@ public class QuotationController {
     }
 
     @DeleteMapping("/{id}/lines/{lineId}")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<QuotationResponse>> deleteLine(
             Authentication authentication, @PathVariable long id, @PathVariable long lineId) {
         AuthPrincipal principal = writer(authentication);
@@ -103,7 +103,7 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/evaluate")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<QuotationResponse>> evaluate(
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
@@ -112,7 +112,7 @@ public class QuotationController {
     }
 
     @GetMapping("/{id}/recommendations")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<RecommendationResponse>>> recommendations(
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = internal(authentication);
@@ -121,7 +121,7 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/recommendations/{productId}/dismiss")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<List<RecommendationResponse>>> dismiss(
             Authentication authentication, @PathVariable long id, @PathVariable long productId) {
         AuthPrincipal principal = writer(authentication);
@@ -130,7 +130,7 @@ public class QuotationController {
     }
 
     @PostMapping("/{id}/submit")
-    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP')")
+    @PreAuthorize("hasAuthority('SALES_REP')")
     public ResponseEntity<ApiResponse<QuotationResponse>> submit(Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(

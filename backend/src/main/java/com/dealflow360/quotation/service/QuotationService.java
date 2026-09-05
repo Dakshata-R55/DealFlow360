@@ -96,9 +96,8 @@ public class QuotationService {
         }
         CustomerTier tier = requireTier(companyId, customer.customerTierId());
         PriceList priceList = quotePricingService.requirePriceList(companyId, tier.id());
-        String quoteNumber = quotationRepository.nextQuoteNumber(companyId);
         Quotation created = quotationRepository.insert(
-                companyId, quoteNumber, customer.id(), salesRepId, priceList.id(), QuotationStatus.DRAFT);
+                companyId, customer.id(), salesRepId, priceList.id(), QuotationStatus.DRAFT);
         return toResponse(companyId, created, List.of());
     }
 

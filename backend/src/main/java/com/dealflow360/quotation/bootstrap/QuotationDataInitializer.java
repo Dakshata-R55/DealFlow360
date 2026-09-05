@@ -45,17 +45,6 @@ public class QuotationDataInitializer implements ApplicationRunner {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """;
 
-    private static final String SEQUENCES_SQL =
-            """
-            CREATE TABLE IF NOT EXISTS quotation_number_sequences (
-              company_id BIGINT NOT NULL,
-              year INT NOT NULL,
-              last_number INT NOT NULL,
-              PRIMARY KEY (company_id, year),
-              CONSTRAINT fk_quotation_sequences_company FOREIGN KEY (company_id) REFERENCES companies (id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """;
-
     private static final String QUOTATIONS_SQL =
             """
             CREATE TABLE IF NOT EXISTS quotations (
@@ -157,10 +146,11 @@ public class QuotationDataInitializer implements ApplicationRunner {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (Statement statement = connection.createStatement()) {
             statement.execute(CUSTOMERS_SQL);
-            statement.execute(SEQUENCES_SQL);
             statement.execute(QUOTATIONS_SQL);
             statement.execute(LINES_SQL);
             statement.execute(DISMISSALS_SQL);
+            statement.execute("DROP TABLE IF EXISTS quotation_number_sequences");
+            statement.execute("UPDATE quotations SET quote_number = CONCAT('Q-', id)");
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {

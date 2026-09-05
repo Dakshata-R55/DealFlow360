@@ -13,8 +13,8 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
-import java.time.Year;
 import java.util.ArrayList;
+import java.util.UUID;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -56,14 +56,8 @@ public class QuotationRepository {
             SET status = ?, submitted_at = ?, risk_score = ?, risk_level = ?
             WHERE id = ? AND company_id = ?
             """;
-    private static final String BUMP_SEQUENCE =
-            """
-            INSERT INTO quotation_number_sequences (company_id, year, last_number)
-            VALUES (?, ?, 1)
-            ON DUPLICATE KEY UPDATE last_number = last_number + 1
-            """;
-    private static final String READ_SEQUENCE =
-            "SELECT last_number FROM quotation_number_sequences WHERE company_id = ? AND year = ?";
+    private static final String ASSIGN_QUOTE_NUMBER =
+            "UPDATE quotations SET quote_number = CONCAT('Q-', id) WHERE id = ? AND company_id = ?";
     private static final String INSERT_DISMISSAL =
             """
             INSERT INTO quotation_dismissed_suggestions (quotation_id, product_id)
@@ -79,40 +73,13 @@ public class QuotationRepository {
         this.dataSource = dataSource;
     }
 
-    public String nextQuoteNumber(long companyId) {
-        int year = Year.now().getValue();
-        Connection connection = DataSourceUtils.getConnection(dataSource);
-        try (PreparedStatement bump = connection.prepareStatement(BUMP_SEQUENCE);
-                PreparedStatement read = connection.prepareStatement(READ_SEQUENCE)) {
-            bump.setLong(1, companyId);
-            bump.setInt(2, year);
-            bump.executeUpdate();
-            read.setLong(1, companyId);
-            read.setInt(2, year);
-            try (ResultSet resultSet = read.executeQuery()) {
-                if (!resultSet.next()) {
-                    throw new SQLException("Quote number sequence missing after bump");
-                }
-                return "Q-%d-%04d".formatted(year, resultSet.getInt("last_number"));
-            }
-        } catch (SQLException ex) {
-            throw new RuntimeException(ex);
-        } finally {
-            DataSourceUtils.releaseConnection(connection, dataSource);
-        }
-    }
-
     public Quotation insert(
-            long companyId,
-            String quoteNumber,
-            long customerId,
-            long salesRepId,
-            long priceListId,
-            QuotationStatus status) {
+            long companyId, long customerId, long salesRepId, long priceListId, QuotationStatus status) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
-        try (PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS);
+                PreparedStatement assignNumber = connection.prepareStatement(ASSIGN_QUOTE_NUMBER)) {
             statement.setLong(1, companyId);
-            statement.setString(2, quoteNumber);
+            statement.setString(2, "t" + UUID.randomUUID().toString().replace("-", "").substring(0, 31));
             statement.setLong(3, customerId);
             statement.setLong(4, salesRepId);
             statement.setLong(5, priceListId);
@@ -130,8 +97,11 @@ public class QuotationRepository {
                 if (!keys.next()) {
                     throw new SQLException("Insert quotation returned no id");
                 }
-                return findById(keys.getLong(1), companyId)
-                        .orElseThrow(() -> new SQLException("Inserted quotation not found"));
+                long id = keys.getLong(1);
+                assignNumber.setLong(1, id);
+                assignNumber.setLong(2, companyId);
+                assignNumber.executeUpdate();
+                return findById(id, companyId).orElseThrow(() -> new SQLException("Inserted quotation not found"));
             }
         } catch (SQLException ex) {
             if (ex.getErrorCode() == 1062) {
