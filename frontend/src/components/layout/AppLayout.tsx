@@ -22,6 +22,9 @@ function titleForPath(pathname: string) {
   if (pathname.startsWith('/customer/orders')) {
     return 'Orders'
   }
+  if (pathname.startsWith('/fulfillment')) {
+    return 'Fulfillment'
+  }
   if (pathname.startsWith('/quotations')) {
     return 'Board'
   }

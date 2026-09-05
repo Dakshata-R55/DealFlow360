@@ -8,6 +8,7 @@ import './api/configApi'
 import './api/quotationApi'
 import './api/marketplaceApi'
 import './api/quoteRequestApi'
+import './api/fulfillmentApi'
 
 export const store = configureStore({
   reducer: {

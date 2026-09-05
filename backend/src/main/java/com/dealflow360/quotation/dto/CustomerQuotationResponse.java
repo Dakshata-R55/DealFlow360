@@ -17,4 +17,7 @@ public record CustomerQuotationResponse(
         long sourceRequestId,
         String sourceRequestNumber,
         BigDecimal expectedDiscountPercent,
+        int shipQty,
+        int backorderQty,
+        List<String> shipFrom,
         List<CustomerQuotationLineResponse> lines) {}

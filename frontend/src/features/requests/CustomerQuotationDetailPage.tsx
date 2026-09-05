@@ -88,6 +88,12 @@ export function CustomerQuotationPanel({ quotationId }: { quotationId: number })
       <p className="muted">
         {quote.sellerCompanyName} · {quote.sourceRequestNumber}
       </p>
+      {quote.status === 'CONFIRMED' ? (
+        <p>
+          {quote.shipFrom.length > 0 ? `Ships from ${quote.shipFrom.join(', ')}` : 'Waiting on warehouse split'}
+          {quote.backorderQty > 0 ? ` · ${quote.backorderQty} on backorder` : ''}.
+        </p>
+      ) : null}
       {quote.lines.map((line) => (
         <article key={line.id} className="quote-line">
           <h3>{line.productName}</h3>

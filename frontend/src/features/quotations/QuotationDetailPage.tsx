@@ -24,6 +24,7 @@ import {
 } from '../../stores/api/quotationApi'
 import { useAppSelector } from '../../stores/hooks'
 import { apiErrorMessage } from '../../types/api'
+import { FulfillmentPanel } from '../fulfillment/FulfillmentPages'
 import {
   legalStatusOptions,
   money,
@@ -537,6 +538,8 @@ export function QuotationPanel({
           </div>
         ) : null}
       </Panel>
+
+      {quote.status === 'CONFIRMED' ? <FulfillmentPanel quotationId={quote.id} ops={user?.role === 'FINANCE_OPS'} /> : null}
 
       <Panel title="Recommended">
         {recsQuery.isLoading ? <p className="muted">Loading suggestions…</p> : null}

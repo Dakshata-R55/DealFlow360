@@ -274,6 +274,9 @@ export type CustomerQuotation = {
   sourceRequestId: number
   sourceRequestNumber: string
   expectedDiscountPercent: number | null
+  shipQty: number
+  backorderQty: number
+  shipFrom: string[]
   lines: CustomerQuotationLine[]
 }
 
@@ -310,6 +313,10 @@ export function isCustomerQuotation(value: unknown): value is CustomerQuotation 
     isNumber(value.sourceRequestId) &&
     typeof value.sourceRequestNumber === 'string' &&
     (value.expectedDiscountPercent === null || isNumber(value.expectedDiscountPercent)) &&
+    isNumber(value.shipQty) &&
+    isNumber(value.backorderQty) &&
+    Array.isArray(value.shipFrom) &&
+    value.shipFrom.every((name) => typeof name === 'string') &&
     Array.isArray(value.lines) &&
     value.lines.every(isCustomerQuotationLine)
   )

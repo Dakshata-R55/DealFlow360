@@ -3,6 +3,7 @@ package com.dealflow360.warehouse.repository;
 import com.dealflow360.shared.exception.ConflictException;
 import com.dealflow360.warehouse.model.Warehouse;
 import com.dealflow360.warehouse.model.WarehouseInventory;
+import com.dealflow360.warehouse.model.WarehouseStock;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -50,6 +51,30 @@ public class WarehouseRepository {
             JOIN warehouses w ON w.id = i.warehouse_id
             WHERE i.warehouse_id = ? AND w.company_id = ?
             ORDER BY i.product_id
+            """;
+
+    private static final String FIND_ACTIVE_STOCK =
+            """
+            SELECT w.id AS warehouse_id, w.name, w.shipping_cost_weight,
+                   COALESCE(i.on_hand, 0) AS on_hand, COALESCE(i.reserved, 0) AS reserved,
+                   i.product_id IS NOT NULL AS has_row
+            FROM warehouses w
+            LEFT JOIN warehouse_inventory i ON i.warehouse_id = w.id AND i.product_id = ?
+            WHERE w.company_id = ? AND w.active = 1
+            ORDER BY w.shipping_cost_weight ASC, w.id ASC
+            """;
+    private static final String FIND_ACTIVE_STOCK_LOCK = FIND_ACTIVE_STOCK + " FOR UPDATE";
+    private static final String ADD_RESERVED =
+            """
+            UPDATE warehouse_inventory
+            SET reserved = reserved + ?
+            WHERE warehouse_id = ? AND product_id = ? AND on_hand - reserved >= ?
+            """;
+    private static final String RELEASE_RESERVED =
+            """
+            UPDATE warehouse_inventory
+            SET reserved = reserved + ?
+            WHERE warehouse_id = ? AND product_id = ? AND reserved >= ?
             """;
 
     private final DataSource dataSource;
@@ -140,6 +165,61 @@ public class WarehouseRepository {
         }
     }
 
+    public List<WarehouseStock> findActiveStockForProduct(long companyId, long productId) {
+        return findActiveStockForProduct(companyId, productId, false);
+    }
+
+    public List<WarehouseStock> lockActiveStockForProduct(long companyId, long productId) {
+        return findActiveStockForProduct(companyId, productId, true);
+    }
+
+    private List<WarehouseStock> findActiveStockForProduct(long companyId, long productId, boolean lock) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement =
+                connection.prepareStatement(lock ? FIND_ACTIVE_STOCK_LOCK : FIND_ACTIVE_STOCK)) {
+            statement.setLong(1, productId);
+            statement.setLong(2, companyId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<WarehouseStock> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    rows.add(mapStock(resultSet));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public void addReserved(long warehouseId, long productId, int delta) {
+        if (delta == 0) {
+            return;
+        }
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement =
+                connection.prepareStatement(delta > 0 ? ADD_RESERVED : RELEASE_RESERVED)) {
+            statement.setInt(1, delta);
+            statement.setLong(2, warehouseId);
+            statement.setLong(3, productId);
+            if (delta > 0) {
+                statement.setInt(4, delta);
+            } else {
+                statement.setInt(4, -delta);
+            }
+            int updated = statement.executeUpdate();
+            if (updated != 1) {
+                throw new ConflictException(
+                        delta > 0 ? "Not enough available stock to reserve" : "Could not release reservation");
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
     public List<WarehouseInventory> findInventory(long warehouseId, long companyId) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(FIND_INVENTORY)) {
@@ -157,6 +237,16 @@ public class WarehouseRepository {
         } finally {
             DataSourceUtils.releaseConnection(connection, dataSource);
         }
+    }
+
+    private static WarehouseStock mapStock(ResultSet resultSet) throws SQLException {
+        return new WarehouseStock(
+                resultSet.getLong("warehouse_id"),
+                resultSet.getString("name"),
+                resultSet.getBigDecimal("shipping_cost_weight"),
+                resultSet.getInt("on_hand"),
+                resultSet.getInt("reserved"),
+                resultSet.getBoolean("has_row"));
     }
 
     private static Warehouse map(ResultSet resultSet) throws SQLException {

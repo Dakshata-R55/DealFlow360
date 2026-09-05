@@ -22,6 +22,7 @@ import { SellerRequestDetailPage } from '../features/requests/SellerRequestDetai
 import { SellerRequestsPage } from '../features/requests/SellerRequestsPage'
 import { QuotationDetailPage } from '../features/quotations/QuotationDetailPage'
 import { QuotationsListPage } from '../features/quotations/QuotationsListPage'
+import { FulfillmentDetailPage, FulfillmentListPage } from '../features/fulfillment/FulfillmentPages'
 import { DashboardPage } from '../pages/DashboardPage'
 import { AdminRoute } from '../routes/AdminRoute'
 import { CustomerRoute } from '../routes/CustomerRoute'
@@ -55,6 +56,8 @@ export function App() {
               <Route element={<SalesWorkspaceRoute />}>
                 <Route path="/quotations" element={<QuotationsListPage />} />
                 <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+                <Route path="/fulfillment" element={<FulfillmentListPage />} />
+                <Route path="/fulfillment/:id" element={<FulfillmentDetailPage />} />
                 <Route path="/requests" element={<SellerRequestsPage />} />
                 <Route path="/requests/:id" element={<SellerRequestDetailPage />} />
               </Route>

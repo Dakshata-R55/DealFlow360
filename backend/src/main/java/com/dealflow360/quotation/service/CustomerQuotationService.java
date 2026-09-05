@@ -4,6 +4,8 @@ import com.dealflow360.catalog.model.Product;
 import com.dealflow360.catalog.repository.ProductRepository;
 import com.dealflow360.company.model.Company;
 import com.dealflow360.company.repository.CompanyRepository;
+import com.dealflow360.fulfillment.service.FulfillmentService;
+import com.dealflow360.fulfillment.service.FulfillmentService.FulfillmentSummary;
 import com.dealflow360.quotation.dto.CustomerCounterRequest;
 import com.dealflow360.quotation.dto.CustomerQuotationLineResponse;
 import com.dealflow360.quotation.dto.CustomerQuotationResponse;
@@ -36,6 +38,7 @@ public class CustomerQuotationService {
     private final QuotationLineRepository quotationLineRepository;
     private final ProductRepository productRepository;
     private final CompanyRepository companyRepository;
+    private final FulfillmentService fulfillmentService;
 
     public CustomerQuotationService(
             QuoteRequestRepository quoteRequestRepository,
@@ -43,13 +46,15 @@ public class CustomerQuotationService {
             QuotationRepository quotationRepository,
             QuotationLineRepository quotationLineRepository,
             ProductRepository productRepository,
-            CompanyRepository companyRepository) {
+            CompanyRepository companyRepository,
+            FulfillmentService fulfillmentService) {
         this.quoteRequestRepository = quoteRequestRepository;
         this.quoteRequestLineRepository = quoteRequestLineRepository;
         this.quotationRepository = quotationRepository;
         this.quotationLineRepository = quotationLineRepository;
         this.productRepository = productRepository;
         this.companyRepository = companyRepository;
+        this.fulfillmentService = fulfillmentService;
     }
 
     public List<CustomerQuotationResponse> list(long customerUserId) {
@@ -114,6 +119,7 @@ public class CustomerQuotationService {
                 owned.quotation().submittedAt(),
                 owned.quotation().riskScore(),
                 owned.quotation().riskLevel());
+        fulfillmentService.planIfAbsent(owned.request().sellerCompanyId(), quotationId);
         return toResponse(owned(customerUserId, quotationId));
     }
 
@@ -147,6 +153,9 @@ public class CustomerQuotationService {
                     line.lineTotal(),
                     line.billingType()));
         }
+        FulfillmentSummary fulfillment = owned.quotation().status() == QuotationStatus.CONFIRMED
+                ? fulfillmentService.summary(owned.request().sellerCompanyId(), owned.quotation().id())
+                : new FulfillmentSummary(0, 0, List.of());
         return new CustomerQuotationResponse(
                 owned.quotation().id(),
                 owned.quotation().quoteNumber(),
@@ -160,6 +169,9 @@ public class CustomerQuotationService {
                 owned.request().id(),
                 owned.request().requestNumber(),
                 owned.request().expectedDiscountPercent(),
+                fulfillment.shipQty(),
+                fulfillment.backorderQty(),
+                fulfillment.shipFrom(),
                 lines);
     }
 

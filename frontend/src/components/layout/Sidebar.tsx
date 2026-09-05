@@ -55,6 +55,11 @@ export function Sidebar() {
             <NavLink to="/quotations" className={linkClass}>
               Board
             </NavLink>
+            {user?.role === 'FINANCE_OPS' ? (
+              <NavLink to="/fulfillment" className={linkClass}>
+                Fulfillment
+              </NavLink>
+            ) : null}
           </>
         ) : null}
         {admin ? (

@@ -21,7 +21,7 @@ function unwrap<T>(isData: (value: unknown) => value is T, label: string) {
 
 export const quoteRequestApi = baseApi
   .enhanceEndpoints({
-    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuotationList', 'CustomerQuotation'],
+    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuotationList', 'CustomerQuotation', 'Fulfillment', 'FulfillmentList', 'Inventory'],
   })
   .injectEndpoints({
     endpoints: (builder) => ({
@@ -206,6 +206,9 @@ export const quoteRequestApi = baseApi
           { type: 'CustomerQuotation', id },
           'QuoteRequestList',
           'QuotationList',
+          'FulfillmentList',
+          { type: 'Fulfillment', id },
+          'Inventory',
         ],
       }),
     }),

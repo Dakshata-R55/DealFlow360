@@ -117,6 +117,27 @@ public class QuotationDataInitializer implements ApplicationRunner {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """;
 
+    private static final String FULFILLMENT_SQL =
+            """
+            CREATE TABLE IF NOT EXISTS fulfillment_allocations (
+              id BIGINT NOT NULL AUTO_INCREMENT,
+              company_id BIGINT NOT NULL,
+              quotation_id BIGINT NOT NULL,
+              quotation_line_id BIGINT NOT NULL,
+              warehouse_id BIGINT NULL,
+              quantity INT NOT NULL,
+              kind VARCHAR(16) NOT NULL,
+              source VARCHAR(16) NOT NULL,
+              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (id),
+              KEY idx_fulfillment_quote (company_id, quotation_id),
+              CONSTRAINT fk_fulfillment_company FOREIGN KEY (company_id) REFERENCES companies (id),
+              CONSTRAINT fk_fulfillment_quote FOREIGN KEY (quotation_id) REFERENCES quotations (id),
+              CONSTRAINT fk_fulfillment_line FOREIGN KEY (quotation_line_id) REFERENCES quotation_lines (id),
+              CONSTRAINT fk_fulfillment_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """;
+
     private final DataSource dataSource;
     private final CompanyRepository companyRepository;
     private final CustomerRepository customerRepository;
@@ -163,6 +184,7 @@ public class QuotationDataInitializer implements ApplicationRunner {
             statement.execute(QUOTATIONS_SQL);
             statement.execute(LINES_SQL);
             statement.execute(DISMISSALS_SQL);
+            statement.execute(FULFILLMENT_SQL);
             addColumnIgnoreDuplicate(statement, "ALTER TABLE quotations ADD COLUMN manager_approved_at TIMESTAMP NULL");
             addColumnIgnoreDuplicate(statement, "ALTER TABLE quotations ADD COLUMN finance_approved_at TIMESTAMP NULL");
         } catch (SQLException ex) {
