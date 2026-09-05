@@ -4,7 +4,7 @@ import java.time.Instant;
 
 public record User(
         long id,
-        long companyId,
+        Long companyId,
         String name,
         String email,
         String passwordHash,

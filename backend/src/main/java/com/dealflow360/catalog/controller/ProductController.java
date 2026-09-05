@@ -38,7 +38,7 @@ public class ProductController {
     public ResponseEntity<ApiResponse<List<ProductResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, catalogService.listProducts(principal.companyId())));
+                ApiResponse.success(HttpStatus.OK, catalogService.listProducts(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -48,7 +48,7 @@ public class ProductController {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        HttpStatus.CREATED, catalogService.createProduct(principal.companyId(), request)));
+                        HttpStatus.CREATED, catalogService.createProduct(SecurityAuth.requireCompany(principal), request)));
     }
 
     @GetMapping("/{id}")
@@ -56,7 +56,7 @@ public class ProductController {
     public ResponseEntity<ApiResponse<ProductResponse>> get(Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, catalogService.getProduct(principal.companyId(), id)));
+                ApiResponse.success(HttpStatus.OK, catalogService.getProduct(SecurityAuth.requireCompany(principal), id)));
     }
 
     @PatchMapping("/{id}")
@@ -65,7 +65,7 @@ public class ProductController {
             Authentication authentication, @PathVariable long id, @Valid @RequestBody PatchProductRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, catalogService.updateProduct(principal.companyId(), id, request)));
+                ApiResponse.success(HttpStatus.OK, catalogService.updateProduct(SecurityAuth.requireCompany(principal), id, request)));
     }
 
     @PostMapping("/{id}/variants")
@@ -75,7 +75,7 @@ public class ProductController {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        HttpStatus.CREATED, catalogService.createVariant(principal.companyId(), id, request)));
+                        HttpStatus.CREATED, catalogService.createVariant(SecurityAuth.requireCompany(principal), id, request)));
     }
 
     @PatchMapping("/{id}/variants/{variantId}")
@@ -87,7 +87,7 @@ public class ProductController {
             @Valid @RequestBody VariantRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, catalogService.updateVariant(principal.companyId(), id, variantId, request)));
+                HttpStatus.OK, catalogService.updateVariant(SecurityAuth.requireCompany(principal), id, variantId, request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

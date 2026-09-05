@@ -8,6 +8,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceUtils;
@@ -16,12 +18,16 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class CompanyRepository {
 
+    private static final String SELECT =
+            "SELECT id, name, code, description, active, created_at, updated_at FROM companies";
     private static final String INSERT =
-            "INSERT INTO companies (name, code, active) VALUES (?, ?, 1)";
-    private static final String FIND_BY_ID = "SELECT id, name, code, active, created_at, updated_at FROM companies WHERE id = ?";
-    private static final String FIND_BY_CODE =
-            "SELECT id, name, code, active, created_at, updated_at FROM companies WHERE code = ?";
+            "INSERT INTO companies (name, code, description, active) VALUES (?, ?, ?, 1)";
+    private static final String UPDATE_DISPLAY = "UPDATE companies SET name = ?, description = ? WHERE id = ?";
+    private static final String FIND_BY_ID = SELECT + " WHERE id = ?";
+    private static final String FIND_BY_CODE = SELECT + " WHERE code = ?";
     private static final String EXISTS_BY_CODE = "SELECT 1 FROM companies WHERE code = ? LIMIT 1";
+    private static final String FIND_ACTIVE =
+            SELECT + " WHERE active = 1 AND (? = '' OR name LIKE ?) ORDER BY name";
 
     private final DataSource dataSource;
 
@@ -30,10 +36,15 @@ public class CompanyRepository {
     }
 
     public Company insert(String name, String code) {
+        return insert(name, code, "");
+    }
+
+    public Company insert(String name, String code, String description) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
             statement.setString(1, name);
             statement.setString(2, code);
+            statement.setString(3, description == null ? "" : description);
             statement.executeUpdate();
             try (ResultSet keys = statement.getGeneratedKeys()) {
                 if (!keys.next()) {
@@ -42,6 +53,20 @@ public class CompanyRepository {
                 long id = keys.getLong(1);
                 return findById(id).orElseThrow(() -> new SQLException("Inserted company not found"));
             }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public void updateDisplay(long id, String name, String description) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE_DISPLAY)) {
+            statement.setString(1, name);
+            statement.setString(2, description == null ? "" : description);
+            statement.setLong(3, id);
+            statement.executeUpdate();
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {
@@ -83,6 +108,27 @@ public class CompanyRepository {
         }
     }
 
+    public List<Company> findActive(String query) {
+        String needle = query == null ? "" : query.trim();
+        String like = "%" + needle + "%";
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_ACTIVE)) {
+            statement.setString(1, needle);
+            statement.setString(2, like);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<Company> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    rows.add(map(resultSet));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
     public boolean existsByCode(String code) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(EXISTS_BY_CODE)) {
@@ -98,10 +144,12 @@ public class CompanyRepository {
     }
 
     private static Company map(ResultSet resultSet) throws SQLException {
+        String description = resultSet.getString("description");
         return new Company(
                 resultSet.getLong("id"),
                 resultSet.getString("name"),
                 resultSet.getString("code"),
+                description == null ? "" : description,
                 resultSet.getBoolean("active"),
                 instant(resultSet, "created_at"),
                 instant(resultSet, "updated_at"));

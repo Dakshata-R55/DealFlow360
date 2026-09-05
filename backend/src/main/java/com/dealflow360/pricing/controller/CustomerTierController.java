@@ -32,7 +32,7 @@ public class CustomerTierController {
     @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<CustomerTierResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
-        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, pricingService.listTiers(principal.companyId())));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, pricingService.listTiers(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -41,7 +41,7 @@ public class CustomerTierController {
             Authentication authentication, @Valid @RequestBody CustomerTierRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(HttpStatus.CREATED, pricingService.createTier(principal.companyId(), request)));
+                .body(ApiResponse.success(HttpStatus.CREATED, pricingService.createTier(SecurityAuth.requireCompany(principal), request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

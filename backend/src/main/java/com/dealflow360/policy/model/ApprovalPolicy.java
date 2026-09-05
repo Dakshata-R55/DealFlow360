@@ -5,9 +5,7 @@ import java.math.BigDecimal;
 public record ApprovalPolicy(
         long id,
         long companyId,
-        RiskLevel riskLevel,
-        BigDecimal minScore,
-        BigDecimal maxScore,
-        boolean requiresManager,
-        boolean requiresFinance,
-        BigDecimal hardLineExcessThreshold) {}
+        BigDecimal managerLineExcessPercent,
+        BigDecimal financeLineExcessPercent,
+        BigDecimal managerQuoteExcessPercent,
+        BigDecimal financeQuoteExcessPercent) {}

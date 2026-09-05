@@ -26,11 +26,15 @@ public record QuotationResponse(
         BigDecimal marginPercent,
         BigDecimal riskScore,
         RiskLevel riskLevel,
+        BigDecimal maxLineExcess,
         LikelyRoute likelyRoute,
         Instant createdAt,
         Instant updatedAt,
         Instant submittedAt,
-        List<QuotationLineResponse> lines) {
+        List<QuotationLineResponse> lines,
+        String sourceRequestNumber,
+        BigDecimal customerExpectedDiscountPercent,
+        BigDecimal customerTargetBudget) {
 
     public record LikelyRoute(boolean requiresManager, boolean requiresFinance) {}
 
@@ -41,7 +45,16 @@ public record QuotationResponse(
             String customerTierName,
             String priceListName,
             LikelyRoute likelyRoute,
-            List<QuotationLineResponse> lines) {
+            List<QuotationLineResponse> lines,
+            String sourceRequestNumber,
+            BigDecimal customerExpectedDiscountPercent,
+            BigDecimal customerTargetBudget) {
+        BigDecimal maxLineExcess = BigDecimal.ZERO;
+        for (QuotationLineResponse line : lines) {
+            if (line.excess().compareTo(maxLineExcess) > 0) {
+                maxLineExcess = line.excess();
+            }
+        }
         return new QuotationResponse(
                 quotation.id(),
                 quotation.quoteNumber(),
@@ -61,10 +74,14 @@ public record QuotationResponse(
                 quotation.marginPercent(),
                 quotation.riskScore(),
                 quotation.riskLevel(),
+                maxLineExcess,
                 likelyRoute,
                 quotation.createdAt(),
                 quotation.updatedAt(),
                 quotation.submittedAt(),
-                lines);
+                lines,
+                sourceRequestNumber,
+                customerExpectedDiscountPercent,
+                customerTargetBudget);
     }
 }

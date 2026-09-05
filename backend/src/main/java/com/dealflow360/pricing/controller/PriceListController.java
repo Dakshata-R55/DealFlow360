@@ -37,7 +37,7 @@ public class PriceListController {
     public ResponseEntity<ApiResponse<List<PriceListResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, pricingService.listPriceLists(principal.companyId())));
+                ApiResponse.success(HttpStatus.OK, pricingService.listPriceLists(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -47,7 +47,7 @@ public class PriceListController {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        HttpStatus.CREATED, pricingService.createPriceList(principal.companyId(), request)));
+                        HttpStatus.CREATED, pricingService.createPriceList(SecurityAuth.requireCompany(principal), request)));
     }
 
     @PutMapping("/{id}/items/{productId}")
@@ -59,7 +59,7 @@ public class PriceListController {
             @Valid @RequestBody PriceListItemRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, pricingService.upsertItem(principal.companyId(), id, productId, request)));
+                HttpStatus.OK, pricingService.upsertItem(SecurityAuth.requireCompany(principal), id, productId, request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

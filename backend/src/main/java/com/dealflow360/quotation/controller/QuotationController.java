@@ -38,7 +38,7 @@ public class QuotationController {
     @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<QuotationResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
-        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, quotationService.list(principal.companyId())));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, quotationService.list(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -49,7 +49,7 @@ public class QuotationController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
                         HttpStatus.CREATED,
-                        quotationService.create(principal.companyId(), principal.userId(), request)));
+                        quotationService.create(SecurityAuth.requireCompany(principal), principal.userId(), request)));
     }
 
     @GetMapping("/{id}")
@@ -57,7 +57,7 @@ public class QuotationController {
     public ResponseEntity<ApiResponse<QuotationResponse>> get(Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, quotationService.get(principal.companyId(), id)));
+                ApiResponse.success(HttpStatus.OK, quotationService.get(SecurityAuth.requireCompany(principal), id)));
     }
 
     @PatchMapping("/{id}")
@@ -66,7 +66,7 @@ public class QuotationController {
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, quotationService.saveDraft(principal.companyId(), id)));
+                ApiResponse.success(HttpStatus.OK, quotationService.saveDraft(SecurityAuth.requireCompany(principal), id)));
     }
 
     @PostMapping("/{id}/lines")
@@ -78,7 +78,7 @@ public class QuotationController {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        HttpStatus.CREATED, quotationService.addLine(principal.companyId(), id, request)));
+                        HttpStatus.CREATED, quotationService.addLine(SecurityAuth.requireCompany(principal), id, request)));
     }
 
     @PatchMapping("/{id}/lines/{lineId}")
@@ -90,7 +90,7 @@ public class QuotationController {
             @Valid @RequestBody PatchQuotationLineRequest request) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, quotationService.updateLine(principal.companyId(), id, lineId, request)));
+                HttpStatus.OK, quotationService.updateLine(SecurityAuth.requireCompany(principal), id, lineId, request)));
     }
 
     @DeleteMapping("/{id}/lines/{lineId}")
@@ -99,7 +99,7 @@ public class QuotationController {
             Authentication authentication, @PathVariable long id, @PathVariable long lineId) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, quotationService.deleteLine(principal.companyId(), id, lineId)));
+                ApiResponse.success(HttpStatus.OK, quotationService.deleteLine(SecurityAuth.requireCompany(principal), id, lineId)));
     }
 
     @PostMapping("/{id}/evaluate")
@@ -108,7 +108,7 @@ public class QuotationController {
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, quotationService.evaluate(principal.companyId(), id)));
+                ApiResponse.success(HttpStatus.OK, quotationService.evaluate(SecurityAuth.requireCompany(principal), id)));
     }
 
     @GetMapping("/{id}/recommendations")
@@ -117,7 +117,7 @@ public class QuotationController {
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, quotationService.recommendations(principal.companyId(), id)));
+                HttpStatus.OK, quotationService.recommendations(SecurityAuth.requireCompany(principal), id)));
     }
 
     @PostMapping("/{id}/recommendations/{productId}/dismiss")
@@ -126,7 +126,7 @@ public class QuotationController {
             Authentication authentication, @PathVariable long id, @PathVariable long productId) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, quotationService.dismissRecommendation(principal.companyId(), id, productId)));
+                HttpStatus.OK, quotationService.dismissRecommendation(SecurityAuth.requireCompany(principal), id, productId)));
     }
 
     @PostMapping("/{id}/submit")
@@ -134,7 +134,7 @@ public class QuotationController {
     public ResponseEntity<ApiResponse<QuotationResponse>> submit(Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = writer(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, quotationService.submit(principal.companyId(), id)));
+                ApiResponse.success(HttpStatus.OK, quotationService.submit(SecurityAuth.requireCompany(principal), id)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

@@ -36,7 +36,7 @@ public class WarehouseController {
     @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<WarehouseResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
-        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, warehouseService.list(principal.companyId())));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, warehouseService.list(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -45,7 +45,7 @@ public class WarehouseController {
             Authentication authentication, @Valid @RequestBody WarehouseRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(HttpStatus.CREATED, warehouseService.create(principal.companyId(), request)));
+                .body(ApiResponse.success(HttpStatus.CREATED, warehouseService.create(SecurityAuth.requireCompany(principal), request)));
     }
 
     @GetMapping("/{id}/inventory")
@@ -54,7 +54,7 @@ public class WarehouseController {
             Authentication authentication, @PathVariable long id) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, warehouseService.listInventory(principal.companyId(), id)));
+                ApiResponse.success(HttpStatus.OK, warehouseService.listInventory(SecurityAuth.requireCompany(principal), id)));
     }
 
     @PutMapping("/{id}/inventory/{productId}")
@@ -66,7 +66,7 @@ public class WarehouseController {
             @Valid @RequestBody InventoryPutRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, warehouseService.upsertInventory(principal.companyId(), id, productId, request)));
+                HttpStatus.OK, warehouseService.upsertInventory(SecurityAuth.requireCompany(principal), id, productId, request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

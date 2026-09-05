@@ -33,7 +33,7 @@ public class PolicyController {
     public ResponseEntity<ApiResponse<List<DiscountPolicyResponse>>> listDiscount(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, policyService.listDiscountPolicies(principal.companyId())));
+                ApiResponse.success(HttpStatus.OK, policyService.listDiscountPolicies(SecurityAuth.requireCompany(principal))));
     }
 
     @PutMapping("/api/discount-policy")
@@ -42,24 +42,24 @@ public class PolicyController {
             Authentication authentication, @Valid @RequestBody DiscountPolicyReplaceRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, policyService.replaceDiscountPolicies(principal.companyId(), request)));
+                HttpStatus.OK, policyService.replaceDiscountPolicies(SecurityAuth.requireCompany(principal), request)));
     }
 
     @GetMapping("/api/approval-policy")
     @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
-    public ResponseEntity<ApiResponse<List<ApprovalPolicyResponse>>> listApproval(Authentication authentication) {
+    public ResponseEntity<ApiResponse<ApprovalPolicyResponse>> getApproval(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, policyService.listApprovalPolicies(principal.companyId())));
+                ApiResponse.success(HttpStatus.OK, policyService.getApprovalPolicy(SecurityAuth.requireCompany(principal))));
     }
 
     @PutMapping("/api/approval-policy")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<List<ApprovalPolicyResponse>>> replaceApproval(
+    public ResponseEntity<ApiResponse<ApprovalPolicyResponse>> replaceApproval(
             Authentication authentication, @Valid @RequestBody ApprovalPolicyReplaceRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, policyService.replaceApprovalPolicies(principal.companyId(), request)));
+                HttpStatus.OK, policyService.replaceApprovalPolicy(SecurityAuth.requireCompany(principal), request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

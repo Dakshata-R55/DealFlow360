@@ -21,9 +21,16 @@ public record QuotationLineResponse(
         BigDecimal lineTotal,
         BigDecimal marginAmount,
         BigDecimal marginPercent,
-        BillingType billingType) {
+        BillingType billingType,
+        BigDecimal customerExpectedDiscountPercent,
+        boolean customerExpectedIsDefault) {
 
-    public static QuotationLineResponse from(QuotationLine line, String productName, String variantLabel) {
+    public static QuotationLineResponse from(
+            QuotationLine line,
+            String productName,
+            String variantLabel,
+            BigDecimal customerExpectedDiscountPercent,
+            boolean customerExpectedIsDefault) {
         BigDecimal excess = line.discountPercent().subtract(line.allowedDiscountPercent()).max(BigDecimal.ZERO);
         return new QuotationLineResponse(
                 line.id(),
@@ -42,6 +49,8 @@ public record QuotationLineResponse(
                 line.lineTotal(),
                 line.marginAmount(),
                 line.marginPercent(),
-                line.billingType());
+                line.billingType(),
+                customerExpectedDiscountPercent,
+                customerExpectedIsDefault);
     }
 }

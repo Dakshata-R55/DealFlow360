@@ -34,7 +34,7 @@ public class SubscriptionPlanController {
     @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<SubscriptionPlanResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
-        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, planService.list(principal.companyId())));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, planService.list(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -43,7 +43,7 @@ public class SubscriptionPlanController {
             Authentication authentication, @Valid @RequestBody SubscriptionPlanRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(HttpStatus.CREATED, planService.create(principal.companyId(), request)));
+                .body(ApiResponse.success(HttpStatus.CREATED, planService.create(SecurityAuth.requireCompany(principal), request)));
     }
 
     @PatchMapping("/{id}")
@@ -52,7 +52,7 @@ public class SubscriptionPlanController {
             Authentication authentication, @PathVariable long id, @Valid @RequestBody SubscriptionPlanRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, planService.update(principal.companyId(), id, request)));
+                ApiResponse.success(HttpStatus.OK, planService.update(SecurityAuth.requireCompany(principal), id, request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

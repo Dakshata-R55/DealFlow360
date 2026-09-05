@@ -32,7 +32,7 @@ public class UpsellRuleController {
     @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<UpsellRuleResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
-        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, upsellRuleService.list(principal.companyId())));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, upsellRuleService.list(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -42,7 +42,7 @@ public class UpsellRuleController {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        HttpStatus.CREATED, upsellRuleService.create(principal.companyId(), request)));
+                        HttpStatus.CREATED, upsellRuleService.create(SecurityAuth.requireCompany(principal), request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

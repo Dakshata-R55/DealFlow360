@@ -20,15 +20,16 @@ import org.springframework.stereotype.Repository;
 public class CustomerRepository {
 
     private static final String INSERT =
-            "INSERT INTO customers (company_id, name, customer_tier_id, active) VALUES (?, ?, ?, ?)";
+            "INSERT INTO customers (company_id, name, customer_tier_id, customer_user_id, active) VALUES (?, ?, ?, ?, ?)";
     private static final String SELECT =
             """
-            SELECT id, company_id, name, customer_tier_id, active, created_at, updated_at
+            SELECT id, company_id, name, customer_tier_id, customer_user_id, active, created_at, updated_at
             FROM customers
             """;
     private static final String FIND_BY_ID = SELECT + " WHERE id = ? AND company_id = ?";
     private static final String FIND_BY_COMPANY = SELECT + " WHERE company_id = ? ORDER BY name";
     private static final String FIND_BY_NAME = SELECT + " WHERE company_id = ? AND name = ?";
+    private static final String FIND_BY_USER = SELECT + " WHERE company_id = ? AND customer_user_id = ?";
 
     private final DataSource dataSource;
 
@@ -37,12 +38,21 @@ public class CustomerRepository {
     }
 
     public Customer insert(long companyId, String name, long customerTierId, boolean active) {
+        return insert(companyId, name, customerTierId, null, active);
+    }
+
+    public Customer insert(long companyId, String name, long customerTierId, Long customerUserId, boolean active) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
             statement.setLong(1, companyId);
             statement.setString(2, name);
             statement.setLong(3, customerTierId);
-            statement.setBoolean(4, active);
+            if (customerUserId == null) {
+                statement.setObject(4, null);
+            } else {
+                statement.setLong(4, customerUserId);
+            }
+            statement.setBoolean(5, active);
             statement.executeUpdate();
             try (ResultSet keys = statement.getGeneratedKeys()) {
                 if (!keys.next()) {
@@ -66,6 +76,24 @@ public class CustomerRepository {
         try (PreparedStatement statement = connection.prepareStatement(FIND_BY_ID)) {
             statement.setLong(1, id);
             statement.setLong(2, companyId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(map(resultSet));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public Optional<Customer> findByCompanyAndUser(long companyId, long customerUserId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_BY_USER)) {
+            statement.setLong(1, companyId);
+            statement.setLong(2, customerUserId);
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (!resultSet.next()) {
                     return Optional.empty();
@@ -121,9 +149,15 @@ public class CustomerRepository {
                 resultSet.getLong("company_id"),
                 resultSet.getString("name"),
                 resultSet.getLong("customer_tier_id"),
+                nullableLong(resultSet, "customer_user_id"),
                 resultSet.getBoolean("active"),
                 instant(resultSet, "created_at"),
                 instant(resultSet, "updated_at"));
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String column) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static Instant instant(ResultSet resultSet, String column) throws SQLException {

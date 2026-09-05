@@ -35,7 +35,7 @@ public class CategoryController {
     public ResponseEntity<ApiResponse<List<CategoryResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, catalogService.listCategories(principal.companyId())));
+                ApiResponse.success(HttpStatus.OK, catalogService.listCategories(SecurityAuth.requireCompany(principal))));
     }
 
     @PostMapping
@@ -45,7 +45,7 @@ public class CategoryController {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        HttpStatus.CREATED, catalogService.createCategory(principal.companyId(), request)));
+                        HttpStatus.CREATED, catalogService.createCategory(SecurityAuth.requireCompany(principal), request)));
     }
 
     @PatchMapping("/{id}")
@@ -54,7 +54,7 @@ public class CategoryController {
             Authentication authentication, @PathVariable long id, @Valid @RequestBody CategoryRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, catalogService.updateCategory(principal.companyId(), id, request)));
+                HttpStatus.OK, catalogService.updateCategory(SecurityAuth.requireCompany(principal), id, request)));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

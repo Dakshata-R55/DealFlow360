@@ -35,6 +35,7 @@ public class AuthDataInitializer implements ApplicationRunner {
               id BIGINT NOT NULL AUTO_INCREMENT,
               name VARCHAR(255) NOT NULL,
               code VARCHAR(64) NOT NULL,
+              description VARCHAR(1024) NOT NULL DEFAULT '',
               active TINYINT(1) NOT NULL DEFAULT 1,
               created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
               updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -47,7 +48,7 @@ public class AuthDataInitializer implements ApplicationRunner {
             """
             CREATE TABLE IF NOT EXISTS users (
               id BIGINT NOT NULL AUTO_INCREMENT,
-              company_id BIGINT NOT NULL,
+              company_id BIGINT NULL,
               name VARCHAR(255) NOT NULL,
               email VARCHAR(255) NOT NULL,
               password_hash VARCHAR(255) NOT NULL,
@@ -99,12 +100,53 @@ public class AuthDataInitializer implements ApplicationRunner {
     private void seed() {
         Company acme = companyRepository
                 .findByCode("ACME")
-                .orElseGet(() -> companyRepository.insert("Acme Corporation", "ACME"));
+                .orElseGet(
+                        () -> companyRepository.insert(
+                                "Acme Technologies",
+                                "ACME",
+                                "Hardware, services, and subscription products for business teams."));
+        companyRepository.updateDisplay(
+                acme.id(),
+                "Acme Technologies",
+                "Hardware, services, and subscription products for business teams.");
         seedUser(acme.id(), "Acme Admin", "admin@acme.demo", UserRole.ADMIN, true);
         seedUser(acme.id(), "Acme Sales", "sales@acme.demo", UserRole.SALES_REP, true);
         seedUser(acme.id(), "Acme Manager", "manager@acme.demo", UserRole.SALES_MANAGER, true);
         seedUser(acme.id(), "Acme Finance", "finance@acme.demo", UserRole.FINANCE_OPS, true);
         seedUser(acme.id(), "Acme Inactive", "inactive@acme.demo", UserRole.ADMIN, false);
+
+        Company urban = companyRepository
+                .findByCode("URBAN")
+                .orElseGet(
+                        () -> companyRepository.insert(
+                                "Urban Systems",
+                                "URBAN",
+                                "Workplace furniture and on-site installation."));
+        seedUser(urban.id(), "Urban Admin", "admin@urban.demo", UserRole.ADMIN, true);
+        seedUser(urban.id(), "Urban Sales", "sales@urban.demo", UserRole.SALES_REP, true);
+        seedUser(urban.id(), "Urban Manager", "manager@urban.demo", UserRole.SALES_MANAGER, true);
+        seedUser(urban.id(), "Urban Finance", "finance@urban.demo", UserRole.FINANCE_OPS, true);
+
+        Company nova = companyRepository
+                .findByCode("NOVA")
+                .orElseGet(
+                        () -> companyRepository.insert(
+                                "Nova Cloud",
+                                "NOVA",
+                                "Cloud backup and managed software services."));
+        seedUser(nova.id(), "Nova Admin", "admin@nova.demo", UserRole.ADMIN, true);
+        seedUser(nova.id(), "Nova Sales", "sales@nova.demo", UserRole.SALES_REP, true);
+        seedUser(nova.id(), "Nova Manager", "manager@nova.demo", UserRole.SALES_MANAGER, true);
+        seedUser(nova.id(), "Nova Finance", "finance@nova.demo", UserRole.FINANCE_OPS, true);
+
+        seedCustomer("Rahul Sharma", "customer@example.com");
+    }
+
+    private void seedCustomer(String name, String email) {
+        if (userRepository.existsByEmail(email)) {
+            return;
+        }
+        userRepository.insert(null, name, email, passwordEncoder.encode(DEMO_PASSWORD), UserRole.CUSTOMER, true);
     }
 
     private void seedUser(long companyId, String name, String email, UserRole role, boolean active) {

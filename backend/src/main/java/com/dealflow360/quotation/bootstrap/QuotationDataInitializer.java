@@ -35,11 +35,13 @@ public class QuotationDataInitializer implements ApplicationRunner {
               company_id BIGINT NOT NULL,
               name VARCHAR(255) NOT NULL,
               customer_tier_id BIGINT NOT NULL,
+              customer_user_id BIGINT NULL,
               active TINYINT(1) NOT NULL DEFAULT 1,
               created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
               updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               PRIMARY KEY (id),
               UNIQUE KEY uk_customers_company_name (company_id, name),
+              UNIQUE KEY uk_customers_company_user (company_id, customer_user_id),
               CONSTRAINT fk_customers_company FOREIGN KEY (company_id) REFERENCES companies (id),
               CONSTRAINT fk_customers_tier FOREIGN KEY (customer_tier_id) REFERENCES customer_tiers (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -149,8 +151,6 @@ public class QuotationDataInitializer implements ApplicationRunner {
             statement.execute(QUOTATIONS_SQL);
             statement.execute(LINES_SQL);
             statement.execute(DISMISSALS_SQL);
-            statement.execute("DROP TABLE IF EXISTS quotation_number_sequences");
-            statement.execute("UPDATE quotations SET quote_number = CONCAT('Q-', id)");
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {

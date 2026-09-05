@@ -18,11 +18,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class RiskEngine {
 
-    private static final BigDecimal SCORE_HIGH = new BigDecimal("5");
-    private static final BigDecimal DEFAULT_HARD_EXCESS = new BigDecimal("8");
-    private static final BigDecimal MAX_WEIGHT = new BigDecimal("0.60");
-    private static final BigDecimal WEIGHTED_WEIGHT = new BigDecimal("0.40");
-    private static final int SCORE_SCALE = 4;
+    private static final BigDecimal HUNDRED = new BigDecimal("100");
+    private static final BigDecimal DEFAULT_MANAGER_LINE = new BigDecimal("1.0000");
+    private static final BigDecimal DEFAULT_FINANCE_LINE = new BigDecimal("8.0000");
+    private static final BigDecimal DEFAULT_MANAGER_QUOTE = new BigDecimal("0.5000");
+    private static final BigDecimal DEFAULT_FINANCE_QUOTE = new BigDecimal("2.0000");
+    private static final int PCT_SCALE = 4;
     private static final RoundingMode ROUNDING = RoundingMode.HALF_UP;
 
     public record LineRiskInput(long lineId, long categoryId, BigDecimal baseValue, BigDecimal enteredDiscount) {}
@@ -30,7 +31,11 @@ public class RiskEngine {
     public record LineRiskResult(long lineId, BigDecimal allowedDiscount, BigDecimal excess) {}
 
     public record RiskEvaluation(
-            BigDecimal score, RiskLevel level, LikelyRoute likelyRoute, List<LineRiskResult> lines) {}
+            BigDecimal quoteExcessPct,
+            BigDecimal maxLineExcess,
+            RiskLevel level,
+            LikelyRoute likelyRoute,
+            List<LineRiskResult> lines) {}
 
     private final DiscountPolicyRepository discountPolicyRepository;
     private final ApprovalPolicyRepository approvalPolicyRepository;
@@ -39,6 +44,28 @@ public class RiskEngine {
             DiscountPolicyRepository discountPolicyRepository, ApprovalPolicyRepository approvalPolicyRepository) {
         this.discountPolicyRepository = discountPolicyRepository;
         this.approvalPolicyRepository = approvalPolicyRepository;
+    }
+
+    public BigDecimal standingDiscount(CustomerTier tier, List<DiscountPolicy> policies) {
+        for (DiscountPolicy policy : policies) {
+            if (policy.customerTierId() != null
+                    && policy.categoryId() == null
+                    && policy.customerTierId() == tier.id()) {
+                return policy.maxDiscountPct();
+            }
+        }
+        return tier.defaultDiscountLimit();
+    }
+
+    public BigDecimal categoryDiscount(long categoryId, List<DiscountPolicy> policies) {
+        for (DiscountPolicy policy : policies) {
+            if (policy.categoryId() != null
+                    && policy.customerTierId() == null
+                    && policy.categoryId() == categoryId) {
+                return policy.maxDiscountPct();
+            }
+        }
+        return BigDecimal.ZERO;
     }
 
     public BigDecimal allowedDiscount(
@@ -71,71 +98,39 @@ public class RiskEngine {
 
     public RiskEvaluation evaluate(long companyId, CustomerTier tier, List<LineRiskInput> inputs) {
         List<DiscountPolicy> policies = discountPolicyRepository.findByCompany(companyId);
+        ApprovalPolicy approval = approvalPolicyRepository.findByCompany(companyId).orElse(defaults());
         List<LineRiskResult> lineResults = new ArrayList<>();
-        BigDecimal maxExcess = BigDecimal.ZERO;
-        BigDecimal weightedNumerator = BigDecimal.ZERO;
-        BigDecimal weightedDenominator = BigDecimal.ZERO;
+        BigDecimal extraMoney = BigDecimal.ZERO;
+        BigDecimal grossSum = BigDecimal.ZERO;
+        BigDecimal maxLineExcess = BigDecimal.ZERO;
         for (LineRiskInput input : inputs) {
             BigDecimal allowed = allowedDiscount(companyId, tier, input.categoryId(), policies);
             BigDecimal excess = input.enteredDiscount().subtract(allowed).max(BigDecimal.ZERO);
             lineResults.add(new LineRiskResult(input.lineId(), allowed, excess));
-            if (excess.compareTo(maxExcess) > 0) {
-                maxExcess = excess;
+            extraMoney = extraMoney.add(input.baseValue().multiply(excess).divide(HUNDRED, 6, ROUNDING));
+            grossSum = grossSum.add(input.baseValue());
+            if (excess.compareTo(maxLineExcess) > 0) {
+                maxLineExcess = excess;
             }
-            weightedNumerator = weightedNumerator.add(input.baseValue().multiply(excess));
-            weightedDenominator = weightedDenominator.add(input.baseValue());
         }
-        BigDecimal weightedExcess = weightedDenominator.compareTo(BigDecimal.ZERO) == 0
+        BigDecimal quoteExcessPct = grossSum.compareTo(BigDecimal.ZERO) == 0
                 ? BigDecimal.ZERO
-                : weightedNumerator.divide(weightedDenominator, SCORE_SCALE + 2, ROUNDING);
-        BigDecimal score = MAX_WEIGHT.multiply(maxExcess)
-                .add(WEIGHTED_WEIGHT.multiply(weightedExcess))
-                .setScale(SCORE_SCALE, ROUNDING);
-        BigDecimal hardThreshold = hardExcessThreshold(companyId);
-        RiskLevel level = classify(score, maxExcess, hardThreshold);
-        return new RiskEvaluation(score, level, routeFor(companyId, level), lineResults);
+                : extraMoney.divide(grossSum, PCT_SCALE + 2, ROUNDING).multiply(HUNDRED).setScale(PCT_SCALE, ROUNDING);
+        maxLineExcess = maxLineExcess.setScale(PCT_SCALE, ROUNDING);
+        LikelyRoute route = routeFor(maxLineExcess, quoteExcessPct, approval);
+        return new RiskEvaluation(quoteExcessPct, maxLineExcess, levelFor(route), route, lineResults);
     }
 
-    public LikelyRoute routeFor(long companyId, RiskLevel level) {
-        return approvalPolicyRepository.findByCompany(companyId).stream()
-                .filter(policy -> policy.riskLevel() == level)
-                .findFirst()
-                .map(policy -> new LikelyRoute(policy.requiresManager(), policy.requiresFinance()))
-                .orElseGet(() -> fallbackRoute(level));
-    }
-
-    public List<DiscountPolicy> policies(long companyId) {
-        return discountPolicyRepository.findByCompany(companyId);
-    }
-
-    private BigDecimal hardExcessThreshold(long companyId) {
-        return approvalPolicyRepository.findByCompany(companyId).stream()
-                .filter(policy -> policy.riskLevel() == RiskLevel.HIGH)
-                .map(ApprovalPolicy::hardLineExcessThreshold)
-                .filter(value -> value.compareTo(BigDecimal.ZERO) > 0)
-                .findFirst()
-                .orElse(DEFAULT_HARD_EXCESS);
-    }
-
-    private static RiskLevel classify(BigDecimal score, BigDecimal maxExcess, BigDecimal hardThreshold) {
-        if (maxExcess.compareTo(hardThreshold) >= 0) {
-            return RiskLevel.HIGH;
-        }
-        if (score.compareTo(BigDecimal.ZERO) == 0) {
-            return RiskLevel.NONE;
-        }
-        if (score.compareTo(SCORE_HIGH) < 0) {
-            return RiskLevel.MEDIUM;
-        }
-        return RiskLevel.HIGH;
-    }
-
-    private static LikelyRoute fallbackRoute(RiskLevel level) {
+    public LikelyRoute routeFor(RiskLevel level) {
         return switch (level) {
             case NONE -> new LikelyRoute(false, false);
             case MEDIUM -> new LikelyRoute(true, false);
             case HIGH -> new LikelyRoute(true, true);
         };
+    }
+
+    public List<DiscountPolicy> policies(long companyId) {
+        return discountPolicyRepository.findByCompany(companyId);
     }
 
     public Map<Long, LineRiskResult> resultsByLineId(RiskEvaluation evaluation) {
@@ -144,5 +139,32 @@ public class RiskEngine {
             map.put(result.lineId(), result);
         }
         return map;
+    }
+
+    private static LikelyRoute routeFor(BigDecimal maxLineExcess, BigDecimal quoteExcessPct, ApprovalPolicy approval) {
+        if (maxLineExcess.compareTo(approval.financeLineExcessPercent()) >= 0
+                || quoteExcessPct.compareTo(approval.financeQuoteExcessPercent()) >= 0) {
+            return new LikelyRoute(true, true);
+        }
+        if (maxLineExcess.compareTo(approval.managerLineExcessPercent()) >= 0
+                || quoteExcessPct.compareTo(approval.managerQuoteExcessPercent()) >= 0) {
+            return new LikelyRoute(true, false);
+        }
+        return new LikelyRoute(false, false);
+    }
+
+    private static RiskLevel levelFor(LikelyRoute route) {
+        if (route.requiresFinance()) {
+            return RiskLevel.HIGH;
+        }
+        if (route.requiresManager()) {
+            return RiskLevel.MEDIUM;
+        }
+        return RiskLevel.NONE;
+    }
+
+    private static ApprovalPolicy defaults() {
+        return new ApprovalPolicy(
+                0L, 0L, DEFAULT_MANAGER_LINE, DEFAULT_FINANCE_LINE, DEFAULT_MANAGER_QUOTE, DEFAULT_FINANCE_QUOTE);
     }
 }

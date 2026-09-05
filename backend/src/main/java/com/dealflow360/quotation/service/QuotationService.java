@@ -23,12 +23,21 @@ import com.dealflow360.quotation.model.QuotationLine;
 import com.dealflow360.quotation.model.QuotationStatus;
 import com.dealflow360.quotation.repository.QuotationLineRepository;
 import com.dealflow360.quotation.repository.QuotationRepository;
+import com.dealflow360.quoterequest.model.QuoteRequest;
+import com.dealflow360.quoterequest.model.QuoteRequestLine;
+import com.dealflow360.quoterequest.repository.QuoteRequestLineRepository;
+import com.dealflow360.quoterequest.repository.QuoteRequestRepository;
+import com.dealflow360.quoterequest.service.QuoteRequestService;
+import com.dealflow360.policy.model.DiscountPolicy;
 import com.dealflow360.shared.exception.BadRequestException;
 import com.dealflow360.shared.exception.ConflictException;
 import com.dealflow360.shared.exception.NotFoundException;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -49,6 +58,8 @@ public class QuotationService {
     private final QuotePricingService quotePricingService;
     private final RiskEngine riskEngine;
     private final RecommendationService recommendationService;
+    private final QuoteRequestRepository quoteRequestRepository;
+    private final QuoteRequestLineRepository quoteRequestLineRepository;
 
     public QuotationService(
             QuotationRepository quotationRepository,
@@ -60,7 +71,9 @@ public class QuotationService {
             ProductVariantRepository variantRepository,
             QuotePricingService quotePricingService,
             RiskEngine riskEngine,
-            RecommendationService recommendationService) {
+            RecommendationService recommendationService,
+            QuoteRequestRepository quoteRequestRepository,
+            QuoteRequestLineRepository quoteRequestLineRepository) {
         this.quotationRepository = quotationRepository;
         this.lineRepository = lineRepository;
         this.customerRepository = customerRepository;
@@ -71,6 +84,8 @@ public class QuotationService {
         this.quotePricingService = quotePricingService;
         this.riskEngine = riskEngine;
         this.recommendationService = recommendationService;
+        this.quoteRequestRepository = quoteRequestRepository;
+        this.quoteRequestLineRepository = quoteRequestLineRepository;
     }
 
     public List<QuotationResponse> list(long companyId) {
@@ -113,8 +128,10 @@ public class QuotationService {
         ProductVariant variant = requireVariant(companyId, product.id(), request.variantId());
         BigDecimal unitPrice =
                 quotePricingService.resolveUnitPrice(companyId, quotation.priceListId(), product, variant);
+        BigDecimal discountPercent = request.discountPercent() == null ? BigDecimal.ZERO : request.discountPercent();
+        validateDiscount(discountPercent);
         QuotePricingService.LineCommercial commercial = quotePricingService.commercial(
-                request.quantity(), unitPrice, product.costPrice(), BigDecimal.ZERO);
+                request.quantity(), unitPrice, product.costPrice(), discountPercent);
         lineRepository.insert(
                 quotation.id(),
                 product.id(),
@@ -123,7 +140,7 @@ public class QuotationService {
                 QuotePricingService.money(product.basePrice()),
                 unitPrice,
                 QuotePricingService.money(product.costPrice()),
-                BigDecimal.ZERO,
+                discountPercent,
                 commercial.discountAmount(),
                 BigDecimal.ZERO,
                 commercial.lineTotal(),
@@ -302,14 +319,14 @@ public class QuotationService {
                         totals.totalCost(),
                         totals.marginAmount(),
                         totals.marginPercent(),
-                        evaluation.score(),
+                        evaluation.quoteExcessPct(),
                         evaluation.level())
                 .orElseThrow(() -> new NotFoundException("Quotation not found"));
         return toResponse(companyId, updated, persisted, evaluation.likelyRoute());
     }
 
     private QuotationResponse toResponse(long companyId, Quotation quotation, List<QuotationLine> lines) {
-        return toResponse(companyId, quotation, lines, riskEngine.routeFor(companyId, quotation.riskLevel()));
+        return toResponse(companyId, quotation, lines, riskEngine.routeFor(quotation.riskLevel()));
     }
 
     private QuotationResponse toResponse(
@@ -322,6 +339,16 @@ public class QuotationService {
                 .findById(quotation.priceListId(), companyId)
                 .orElseThrow(() -> new NotFoundException("Price list not found"));
         List<QuotationLineResponse> lineResponses = new ArrayList<>();
+        QuoteRequest source = quoteRequestRepository.findByQuotationId(quotation.id()).orElse(null);
+        Map<Long, Deque<QuoteRequestLine>> expectedByProduct = new HashMap<>();
+        if (source != null) {
+            for (QuoteRequestLine requestLine : quoteRequestLineRepository.findByRequest(source.id())) {
+                expectedByProduct
+                        .computeIfAbsent(requestLine.productId(), ignored -> new ArrayDeque<>())
+                        .add(requestLine);
+            }
+        }
+        List<DiscountPolicy> policies = riskEngine.policies(companyId);
         for (QuotationLine line : lines) {
             Product product = productRepository
                     .findById(line.productId(), companyId)
@@ -333,10 +360,31 @@ public class QuotationService {
                         .map(variant -> variant.attributeName() + " " + variant.attributeValue())
                         .orElse(null);
             }
-            lineResponses.add(QuotationLineResponse.from(line, product.name(), variantLabel));
+            QuoteRequestLine requestLine =
+                    expectedByProduct.getOrDefault(line.productId(), new ArrayDeque<>()).pollFirst();
+            BigDecimal available = riskEngine.allowedDiscount(companyId, tier, product.categoryId(), policies);
+            BigDecimal customerExpected = null;
+            boolean expectedIsDefault = true;
+            if (source != null) {
+                BigDecimal stored = requestLine == null ? null : requestLine.expectedDiscountPercent();
+                customerExpected = QuoteRequestService.appliedExpected(
+                        stored, source.expectedDiscountPercent(), available);
+                expectedIsDefault = !QuoteRequestService.isIndependentExpected(stored, available);
+            }
+            lineResponses.add(QuotationLineResponse.from(
+                    line, product.name(), variantLabel, customerExpected, expectedIsDefault));
         }
         return QuotationResponse.from(
-                quotation, customer.name(), tier.id(), tier.name(), priceList.name(), likelyRoute, lineResponses);
+                quotation,
+                customer.name(),
+                tier.id(),
+                tier.name(),
+                priceList.name(),
+                likelyRoute,
+                lineResponses,
+                source == null ? null : source.requestNumber(),
+                source == null ? null : source.expectedDiscountPercent(),
+                source == null ? null : source.targetBudget());
     }
 
     private Quotation requireQuote(long companyId, long quotationId) {

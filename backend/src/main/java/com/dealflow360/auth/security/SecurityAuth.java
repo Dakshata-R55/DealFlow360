@@ -21,4 +21,11 @@ public final class SecurityAuth {
             throw new ForbiddenException("Access denied");
         }
     }
+
+    public static long requireCompany(AuthPrincipal principal) {
+        if (principal.companyId() == null) {
+            throw new ForbiddenException("Access denied");
+        }
+        return principal.companyId();
+    }
 }

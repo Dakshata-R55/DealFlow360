@@ -1,7 +1,6 @@
 package com.dealflow360.policy.repository;
 
 import com.dealflow360.policy.model.ApprovalPolicy;
-import com.dealflow360.policy.model.RiskLevel;
 import com.dealflow360.shared.exception.ConflictException;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -9,8 +8,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Optional;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Repository;
@@ -21,17 +19,18 @@ public class ApprovalPolicyRepository {
     private static final String INSERT =
             """
             INSERT INTO approval_policies (
-              company_id, risk_level, min_score, max_score, requires_manager, requires_finance, hard_line_excess_threshold
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+              company_id, manager_line_excess_pct, finance_line_excess_pct,
+              manager_quote_excess_pct, finance_quote_excess_pct
+            ) VALUES (?, ?, ?, ?, ?)
             """;
     private static final String DELETE_BY_COMPANY = "DELETE FROM approval_policies WHERE company_id = ?";
     private static final String FIND_BY_COMPANY =
             """
-            SELECT id, company_id, risk_level, min_score, max_score, requires_manager, requires_finance,
-                   hard_line_excess_threshold
+            SELECT id, company_id, manager_line_excess_pct, finance_line_excess_pct,
+                   manager_quote_excess_pct, finance_quote_excess_pct
             FROM approval_policies
             WHERE company_id = ?
-            ORDER BY min_score
+            LIMIT 1
             """;
 
     private final DataSource dataSource;
@@ -42,36 +41,19 @@ public class ApprovalPolicyRepository {
 
     public ApprovalPolicy insert(
             long companyId,
-            RiskLevel riskLevel,
-            BigDecimal minScore,
-            BigDecimal maxScore,
-            boolean requiresManager,
-            boolean requiresFinance,
-            BigDecimal hardLineExcessThreshold) {
+            BigDecimal managerLineExcessPercent,
+            BigDecimal financeLineExcessPercent,
+            BigDecimal managerQuoteExcessPercent,
+            BigDecimal financeQuoteExcessPercent) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
             statement.setLong(1, companyId);
-            statement.setString(2, riskLevel.name());
-            statement.setBigDecimal(3, minScore);
-            statement.setBigDecimal(4, maxScore);
-            statement.setBoolean(5, requiresManager);
-            statement.setBoolean(6, requiresFinance);
-            statement.setBigDecimal(7, hardLineExcessThreshold);
+            statement.setBigDecimal(2, managerLineExcessPercent);
+            statement.setBigDecimal(3, financeLineExcessPercent);
+            statement.setBigDecimal(4, managerQuoteExcessPercent);
+            statement.setBigDecimal(5, financeQuoteExcessPercent);
             statement.executeUpdate();
-            try (ResultSet keys = statement.getGeneratedKeys()) {
-                if (!keys.next()) {
-                    throw new SQLException("Insert approval policy returned no id");
-                }
-                return new ApprovalPolicy(
-                        keys.getLong(1),
-                        companyId,
-                        riskLevel,
-                        minScore,
-                        maxScore,
-                        requiresManager,
-                        requiresFinance,
-                        hardLineExcessThreshold);
-            }
+            return findByCompany(companyId).orElseThrow(() -> new SQLException("Inserted approval policy not found"));
         } catch (SQLException ex) {
             if (ex.getErrorCode() == 1062) {
                 throw new ConflictException("Approval policy already exists");
@@ -94,16 +76,15 @@ public class ApprovalPolicyRepository {
         }
     }
 
-    public List<ApprovalPolicy> findByCompany(long companyId) {
+    public Optional<ApprovalPolicy> findByCompany(long companyId) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(FIND_BY_COMPANY)) {
             statement.setLong(1, companyId);
             try (ResultSet resultSet = statement.executeQuery()) {
-                List<ApprovalPolicy> rows = new ArrayList<>();
-                while (resultSet.next()) {
-                    rows.add(map(resultSet));
+                if (!resultSet.next()) {
+                    return Optional.empty();
                 }
-                return rows;
+                return Optional.of(map(resultSet));
             }
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
@@ -116,11 +97,9 @@ public class ApprovalPolicyRepository {
         return new ApprovalPolicy(
                 resultSet.getLong("id"),
                 resultSet.getLong("company_id"),
-                RiskLevel.valueOf(resultSet.getString("risk_level")),
-                resultSet.getBigDecimal("min_score"),
-                resultSet.getBigDecimal("max_score"),
-                resultSet.getBoolean("requires_manager"),
-                resultSet.getBoolean("requires_finance"),
-                resultSet.getBigDecimal("hard_line_excess_threshold"));
+                resultSet.getBigDecimal("manager_line_excess_pct"),
+                resultSet.getBigDecimal("finance_line_excess_pct"),
+                resultSet.getBigDecimal("manager_quote_excess_pct"),
+                resultSet.getBigDecimal("finance_quote_excess_pct"));
     }
 }

@@ -3,7 +3,6 @@ package com.dealflow360.policy.service;
 import com.dealflow360.catalog.repository.ProductCategoryRepository;
 import com.dealflow360.policy.dto.ApprovalPolicyReplaceRequest;
 import com.dealflow360.policy.dto.ApprovalPolicyResponse;
-import com.dealflow360.policy.dto.ApprovalPolicyRowRequest;
 import com.dealflow360.policy.dto.DiscountPolicyReplaceRequest;
 import com.dealflow360.policy.dto.DiscountPolicyResponse;
 import com.dealflow360.policy.dto.DiscountPolicyRowRequest;
@@ -12,6 +11,7 @@ import com.dealflow360.policy.repository.DiscountPolicyRepository;
 import com.dealflow360.pricing.repository.CustomerTierRepository;
 import com.dealflow360.shared.exception.BadRequestException;
 import com.dealflow360.shared.exception.NotFoundException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -66,27 +66,34 @@ public class PolicyService {
         return saved;
     }
 
-    public List<ApprovalPolicyResponse> listApprovalPolicies(long companyId) {
-        return approvalPolicyRepository.findByCompany(companyId).stream()
+    public ApprovalPolicyResponse getApprovalPolicy(long companyId) {
+        return approvalPolicyRepository
+                .findByCompany(companyId)
                 .map(ApprovalPolicyResponse::from)
-                .toList();
+                .orElseThrow(() -> new NotFoundException("Approval policy not found"));
     }
 
     @Transactional
-    public List<ApprovalPolicyResponse> replaceApprovalPolicies(long companyId, ApprovalPolicyReplaceRequest request) {
+    public ApprovalPolicyResponse replaceApprovalPolicy(long companyId, ApprovalPolicyReplaceRequest request) {
+        validateThresholds(request);
         approvalPolicyRepository.deleteByCompany(companyId);
-        List<ApprovalPolicyResponse> saved = new ArrayList<>();
-        for (ApprovalPolicyRowRequest row : request.policies()) {
-            saved.add(ApprovalPolicyResponse.from(approvalPolicyRepository.insert(
-                    companyId,
-                    row.riskLevel(),
-                    row.minScore(),
-                    row.maxScore(),
-                    row.requiresManager(),
-                    row.requiresFinance(),
-                    row.hardLineExcessThreshold())));
+        return ApprovalPolicyResponse.from(approvalPolicyRepository.insert(
+                companyId,
+                request.managerLineExcessPercent(),
+                request.financeLineExcessPercent(),
+                request.managerQuoteExcessPercent(),
+                request.financeQuoteExcessPercent()));
+    }
+
+    private static void validateThresholds(ApprovalPolicyReplaceRequest request) {
+        requireAtLeast(request.financeLineExcessPercent(), request.managerLineExcessPercent(), "Finance line excess must be at least the manager line excess");
+        requireAtLeast(request.financeQuoteExcessPercent(), request.managerQuoteExcessPercent(), "Finance quote excess must be at least the manager quote excess");
+    }
+
+    private static void requireAtLeast(BigDecimal higher, BigDecimal lower, String message) {
+        if (higher.compareTo(lower) < 0) {
+            throw new BadRequestException(message);
         }
-        return saved;
     }
 
     private static void validateXor(DiscountPolicyRowRequest row) {

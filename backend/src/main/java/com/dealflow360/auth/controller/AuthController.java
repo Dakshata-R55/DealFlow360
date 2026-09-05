@@ -2,6 +2,7 @@ package com.dealflow360.auth.controller;
 
 import com.dealflow360.auth.dto.AuthSessionResponse;
 import com.dealflow360.auth.dto.AuthUserResponse;
+import com.dealflow360.auth.dto.CustomerSignupRequest;
 import com.dealflow360.auth.dto.LoginRequest;
 import com.dealflow360.auth.dto.SignupRequest;
 import com.dealflow360.auth.security.AuthPrincipal;
@@ -31,6 +32,13 @@ public class AuthController {
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<AuthSessionResponse>> signup(@Valid @RequestBody SignupRequest request) {
         AuthSessionResponse session = authService.signup(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(HttpStatus.CREATED, session));
+    }
+
+    @PostMapping("/signup-customer")
+    public ResponseEntity<ApiResponse<AuthSessionResponse>> signupCustomer(
+            @Valid @RequestBody CustomerSignupRequest request) {
+        AuthSessionResponse session = authService.signupCustomer(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(HttpStatus.CREATED, session));
     }
 

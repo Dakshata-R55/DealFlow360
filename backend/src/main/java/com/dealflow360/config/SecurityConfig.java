@@ -50,7 +50,7 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/health")
                         .permitAll()
-                        .requestMatchers("/api/auth/login", "/api/auth/signup")
+                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/auth/signup-customer")
                         .permitAll()
                         .requestMatchers("/api/**")
                         .authenticated()

@@ -32,14 +32,16 @@ public class JwtService {
     public String createToken(User user) {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(ttlSeconds);
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(String.valueOf(user.id()))
-                .claim("companyId", user.companyId())
                 .claim("role", user.role().name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
-                .signWith(key)
-                .compact();
+                .signWith(key);
+        if (user.companyId() != null) {
+            builder.claim("companyId", user.companyId());
+        }
+        return builder.compact();
     }
 
     public AuthPrincipal parse(String token) {
@@ -51,6 +53,7 @@ public class JwtService {
         long userId = Long.parseLong(claims.getSubject());
         Number companyId = claims.get("companyId", Number.class);
         String role = claims.get("role", String.class);
-        return new AuthPrincipal(userId, companyId.longValue(), UserRole.valueOf(role));
+        Long company = companyId == null ? null : companyId.longValue();
+        return new AuthPrincipal(userId, company, UserRole.valueOf(role));
     }
 }

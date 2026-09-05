@@ -8,7 +8,6 @@ import com.dealflow360.catalog.repository.ProductRepository;
 import com.dealflow360.catalog.repository.ProductVariantRepository;
 import com.dealflow360.company.model.Company;
 import com.dealflow360.company.repository.CompanyRepository;
-import com.dealflow360.policy.model.RiskLevel;
 import com.dealflow360.policy.repository.ApprovalPolicyRepository;
 import com.dealflow360.policy.repository.DiscountPolicyRepository;
 import com.dealflow360.pricing.model.CustomerTier;
@@ -26,6 +25,7 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +40,10 @@ import org.springframework.stereotype.Component;
 public class MasterDataInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(MasterDataInitializer.class);
+    private static final BigDecimal MANAGER_LINE_EXCESS = new BigDecimal("1.0000");
+    private static final BigDecimal FINANCE_LINE_EXCESS = new BigDecimal("8.0000");
+    private static final BigDecimal MANAGER_QUOTE_EXCESS = new BigDecimal("0.5000");
+    private static final BigDecimal FINANCE_QUOTE_EXCESS = new BigDecimal("2.0000");
 
     private static final String CATEGORIES_SQL =
             """
@@ -160,14 +164,12 @@ public class MasterDataInitializer implements ApplicationRunner {
             CREATE TABLE IF NOT EXISTS approval_policies (
               id BIGINT NOT NULL AUTO_INCREMENT,
               company_id BIGINT NOT NULL,
-              risk_level VARCHAR(16) NOT NULL,
-              min_score DECIMAL(10,4) NOT NULL,
-              max_score DECIMAL(10,4) NOT NULL,
-              requires_manager TINYINT(1) NOT NULL,
-              requires_finance TINYINT(1) NOT NULL,
-              hard_line_excess_threshold DECIMAL(10,4) NOT NULL,
+              manager_line_excess_pct DECIMAL(10,4) NOT NULL,
+              finance_line_excess_pct DECIMAL(10,4) NOT NULL,
+              manager_quote_excess_pct DECIMAL(10,4) NOT NULL,
+              finance_quote_excess_pct DECIMAL(10,4) NOT NULL,
               PRIMARY KEY (id),
-              UNIQUE KEY uk_approval_policies_company_level (company_id, risk_level),
+              UNIQUE KEY uk_approval_policies_company (company_id),
               CONSTRAINT fk_approval_policies_company FOREIGN KEY (company_id) REFERENCES companies (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """;
@@ -287,6 +289,11 @@ public class MasterDataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         createTables();
         seedAcme();
+        seedSellerCatalog("URBAN", urbanProducts());
+        seedSellerCatalog("NOVA", novaProducts());
+        for (Company company : companyRepository.findActive("")) {
+            seedApprovalIfMissing(company.id());
+        }
         log.info("Master data schema ready.");
     }
 
@@ -300,7 +307,7 @@ public class MasterDataInitializer implements ApplicationRunner {
             statement.execute(PRICE_LISTS_SQL);
             statement.execute(PRICE_LIST_ITEMS_SQL);
             statement.execute(DISCOUNT_POLICIES_SQL);
-            statement.execute(APPROVAL_POLICIES_SQL);
+            migrateApprovalPolicies(connection, statement);
             statement.execute(WAREHOUSES_SQL);
             statement.execute(INVENTORY_SQL);
             statement.execute(PLANS_SQL);
@@ -373,26 +380,9 @@ public class MasterDataInitializer implements ApplicationRunner {
         discountPolicyRepository.insert(companyId, gold.id(), null, new BigDecimal("15.0000"));
         discountPolicyRepository.insert(companyId, null, hardware.id(), new BigDecimal("15.0000"));
         discountPolicyRepository.insert(companyId, null, services.id(), new BigDecimal("10.0000"));
-        discountPolicyRepository.insert(companyId, null, subscriptions.id(), new BigDecimal("12.0000"));
+        discountPolicyRepository.insert(companyId, null, subscriptions.id(), new BigDecimal("8.0000"));
 
-        approvalPolicyRepository.insert(
-                companyId, RiskLevel.NONE, BigDecimal.ZERO, BigDecimal.ZERO, false, false, BigDecimal.ZERO);
-        approvalPolicyRepository.insert(
-                companyId,
-                RiskLevel.MEDIUM,
-                BigDecimal.ZERO,
-                new BigDecimal("5.0000"),
-                true,
-                false,
-                BigDecimal.ZERO);
-        approvalPolicyRepository.insert(
-                companyId,
-                RiskLevel.HIGH,
-                new BigDecimal("5.0000"),
-                new BigDecimal("999.0000"),
-                true,
-                true,
-                new BigDecimal("8.0000"));
+        seedApprovalIfMissing(companyId);
 
         Warehouse bangalore =
                 warehouseRepository.insert(companyId, "Bangalore", "Bengaluru", new BigDecimal("1.0000"), true);
@@ -412,4 +402,150 @@ public class MasterDataInitializer implements ApplicationRunner {
                 new BigDecimal("20.0000"),
                 true);
     }
+
+    private void seedSellerCatalog(String companyCode, List<SeedProduct> products) {
+        Company company = companyRepository.findByCode(companyCode).orElse(null);
+        if (company == null || categoryRepository.existsForCompany(company.id())) {
+            return;
+        }
+        long companyId = company.id();
+        ProductCategory hardware = categoryRepository.insert(companyId, "Hardware", true);
+        ProductCategory services = categoryRepository.insert(companyId, "Services", true);
+        ProductCategory subscriptions = categoryRepository.insert(companyId, "Subscriptions", true);
+
+        CustomerTier bronze = tierRepository.insert(companyId, "Bronze", new BigDecimal("5.0000"), true);
+        CustomerTier silver = tierRepository.insert(companyId, "Silver", new BigDecimal("10.0000"), true);
+        CustomerTier gold = tierRepository.insert(companyId, "Gold", new BigDecimal("15.0000"), true);
+        priceListRepository.insert(companyId, "Bronze INR", "INR", bronze.id(), true);
+        priceListRepository.insert(companyId, "Silver INR", "INR", silver.id(), true);
+        priceListRepository.insert(companyId, "Gold INR", "INR", gold.id(), true);
+
+        for (SeedProduct seed : products) {
+            long categoryId =
+                    "Hardware".equals(seed.category) ? hardware.id() : "Services".equals(seed.category) ? services.id() : subscriptions.id();
+            productRepository.insert(
+                    companyId,
+                    categoryId,
+                    seed.name,
+                    seed.description,
+                    seed.unit,
+                    seed.basePrice,
+                    seed.costPrice,
+                    new BigDecimal("18.0000"),
+                    seed.billingType,
+                    true);
+        }
+
+        discountPolicyRepository.insert(companyId, bronze.id(), null, new BigDecimal("5.0000"));
+        discountPolicyRepository.insert(companyId, silver.id(), null, new BigDecimal("10.0000"));
+        discountPolicyRepository.insert(companyId, gold.id(), null, new BigDecimal("15.0000"));
+        discountPolicyRepository.insert(companyId, null, hardware.id(), new BigDecimal("15.0000"));
+        discountPolicyRepository.insert(companyId, null, services.id(), new BigDecimal("10.0000"));
+        discountPolicyRepository.insert(companyId, null, subscriptions.id(), new BigDecimal("8.0000"));
+
+        seedApprovalIfMissing(companyId);
+        warehouseRepository.insert(companyId, "Main", company.name(), new BigDecimal("1.0000"), true);
+    }
+
+    private static List<SeedProduct> urbanProducts() {
+        return List.of(
+                new SeedProduct(
+                        "Desk",
+                        "Hardware",
+                        "Standing office desk",
+                        "piece",
+                        new BigDecimal("45000.00"),
+                        new BigDecimal("22000.00"),
+                        BillingType.ONE_TIME),
+                new SeedProduct(
+                        "Chair",
+                        "Hardware",
+                        "Ergonomic task chair",
+                        "piece",
+                        new BigDecimal("18000.00"),
+                        new BigDecimal("8000.00"),
+                        BillingType.ONE_TIME),
+                new SeedProduct(
+                        "Installation",
+                        "Services",
+                        "On-site furniture installation",
+                        "job",
+                        new BigDecimal("6000.00"),
+                        new BigDecimal("2500.00"),
+                        BillingType.ONE_TIME),
+                new SeedProduct(
+                        "Workplace Care",
+                        "Subscriptions",
+                        "Monthly furniture maintenance",
+                        "plan",
+                        new BigDecimal("4000.00"),
+                        new BigDecimal("1200.00"),
+                        BillingType.RECURRING));
+    }
+
+    private static List<SeedProduct> novaProducts() {
+        return List.of(
+                new SeedProduct(
+                        "Cloud Backup",
+                        "Subscriptions",
+                        "Encrypted backup for business files",
+                        "plan",
+                        new BigDecimal("9000.00"),
+                        new BigDecimal("2500.00"),
+                        BillingType.RECURRING),
+                new SeedProduct(
+                        "Managed Firewall",
+                        "Subscriptions",
+                        "Managed network protection",
+                        "plan",
+                        new BigDecimal("12000.00"),
+                        new BigDecimal("4000.00"),
+                        BillingType.RECURRING),
+                new SeedProduct(
+                        "Migration Service",
+                        "Services",
+                        "One-time cloud migration",
+                        "job",
+                        new BigDecimal("35000.00"),
+                        new BigDecimal("15000.00"),
+                        BillingType.ONE_TIME),
+                new SeedProduct(
+                        "Access Point",
+                        "Hardware",
+                        "Office wireless access point",
+                        "piece",
+                        new BigDecimal("14000.00"),
+                        new BigDecimal("7000.00"),
+                        BillingType.ONE_TIME));
+    }
+
+    private void migrateApprovalPolicies(Connection connection, Statement statement) throws SQLException {
+        boolean needsRebuild = false;
+        try (Statement probe = connection.createStatement()) {
+            probe.executeQuery("SELECT manager_line_excess_pct FROM approval_policies LIMIT 1");
+        } catch (SQLException ignored) {
+            needsRebuild = true;
+        }
+        if (needsRebuild) {
+            statement.execute("DROP TABLE IF EXISTS approval_policies");
+        }
+        statement.execute(APPROVAL_POLICIES_SQL);
+    }
+
+    private void seedApprovalIfMissing(long companyId) {
+        if (approvalPolicyRepository.findByCompany(companyId).isPresent()) {
+            return;
+        }
+        approvalPolicyRepository.insert(
+                companyId, MANAGER_LINE_EXCESS, FINANCE_LINE_EXCESS, MANAGER_QUOTE_EXCESS, FINANCE_QUOTE_EXCESS);
+    }
+
+    private record SeedProduct(
+            String name,
+            String category,
+            String description,
+            String unit,
+            BigDecimal basePrice,
+            BigDecimal costPrice,
+            BillingType billingType) {}
 }

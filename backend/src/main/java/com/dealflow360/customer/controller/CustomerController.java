@@ -28,7 +28,7 @@ public class CustomerController {
     @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<List<CustomerResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
-        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, customerService.list(principal.companyId())));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, customerService.list(SecurityAuth.requireCompany(principal))));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

@@ -2,6 +2,7 @@ package com.dealflow360.auth.service;
 
 import com.dealflow360.auth.dto.AuthSessionResponse;
 import com.dealflow360.auth.dto.AuthUserResponse;
+import com.dealflow360.auth.dto.CustomerSignupRequest;
 import com.dealflow360.auth.dto.LoginRequest;
 import com.dealflow360.auth.dto.SignupRequest;
 import com.dealflow360.auth.model.User;
@@ -54,6 +55,18 @@ public class AuthService {
         return toSession(user, company);
     }
 
+    @Transactional
+    public AuthSessionResponse signupCustomer(CustomerSignupRequest request) {
+        String email = normalizeEmail(request.email());
+        String name = request.name().trim();
+        if (userRepository.existsByEmail(email)) {
+            throw new ConflictException("Email already exists");
+        }
+        String passwordHash = passwordEncoder.encode(request.password());
+        User user = userRepository.insert(null, name, email, passwordHash, UserRole.CUSTOMER, true);
+        return toSession(user, null);
+    }
+
     public AuthSessionResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
         User user = userRepository
@@ -63,6 +76,15 @@ public class AuthService {
             throw new UnauthorizedException(INVALID_CREDENTIALS);
         }
         if (!passwordEncoder.matches(request.password(), user.passwordHash())) {
+            throw new UnauthorizedException(INVALID_CREDENTIALS);
+        }
+        if (user.role() == UserRole.CUSTOMER) {
+            if (user.companyId() != null) {
+                throw new UnauthorizedException(INVALID_CREDENTIALS);
+            }
+            return toSession(user, null);
+        }
+        if (user.companyId() == null) {
             throw new UnauthorizedException(INVALID_CREDENTIALS);
         }
         Company company = companyRepository
@@ -81,6 +103,12 @@ public class AuthService {
         if (!user.active()) {
             throw new UnauthorizedException("Unauthorized");
         }
+        if (user.role() == UserRole.CUSTOMER) {
+            return toUserResponse(user, null);
+        }
+        if (user.companyId() == null) {
+            throw new UnauthorizedException("Unauthorized");
+        }
         Company company = companyRepository
                 .findById(user.companyId())
                 .orElseThrow(() -> new UnauthorizedException("Unauthorized"));
@@ -93,8 +121,9 @@ public class AuthService {
     }
 
     private static AuthUserResponse toUserResponse(User user, Company company) {
-        return new AuthUserResponse(
-                user.id(), user.name(), user.email(), user.role(), company.id(), company.name());
+        Long companyId = company == null ? null : company.id();
+        String companyName = company == null ? null : company.name();
+        return new AuthUserResponse(user.id(), user.name(), user.email(), user.role(), companyId, companyName);
     }
 
     static String normalizeEmail(String email) {

@@ -45,9 +45,18 @@ public class UserRepository {
 
     public User insert(
             long companyId, String name, String email, String passwordHash, UserRole role, boolean active) {
+        return insert(Long.valueOf(companyId), name, email, passwordHash, role, active);
+    }
+
+    public User insert(
+            Long companyId, String name, String email, String passwordHash, UserRole role, boolean active) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
-            statement.setLong(1, companyId);
+            if (companyId == null) {
+                statement.setObject(1, null);
+            } else {
+                statement.setLong(1, companyId);
+            }
             statement.setString(2, name);
             statement.setString(3, email);
             statement.setString(4, passwordHash);
@@ -122,7 +131,7 @@ public class UserRepository {
     private static User map(ResultSet resultSet) throws SQLException {
         return new User(
                 resultSet.getLong("id"),
-                resultSet.getLong("company_id"),
+                nullableLong(resultSet, "company_id"),
                 resultSet.getString("name"),
                 resultSet.getString("email"),
                 resultSet.getString("password_hash"),
@@ -130,6 +139,11 @@ public class UserRepository {
                 resultSet.getBoolean("active"),
                 instant(resultSet, "created_at"),
                 instant(resultSet, "updated_at"));
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String column) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static Instant instant(ResultSet resultSet, String column) throws SQLException {

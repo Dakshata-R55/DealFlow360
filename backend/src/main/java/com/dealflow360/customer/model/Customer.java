@@ -7,6 +7,7 @@ public record Customer(
         long companyId,
         String name,
         long customerTierId,
+        Long customerUserId,
         boolean active,
         Instant createdAt,
         Instant updatedAt) {}
