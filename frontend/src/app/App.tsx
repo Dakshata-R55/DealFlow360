@@ -1,9 +1,15 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppProviders } from './providers'
 import { AppLayout } from '../components/layout/AppLayout'
+import { CatalogPage } from '../features/admin/CatalogPage'
+import { PlansPage } from '../features/admin/PlansPage'
+import { PoliciesPage } from '../features/admin/PoliciesPage'
+import { ProductDetailPage } from '../features/admin/ProductDetailPage'
+import { WarehousesPage } from '../features/admin/WarehousesPage'
 import { LoginPage } from '../features/auth/LoginPage'
 import { SignupPage } from '../features/auth/SignupPage'
 import { DashboardPage } from '../pages/DashboardPage'
+import { AdminRoute } from '../routes/AdminRoute'
 import { ProtectedRoute } from '../routes/ProtectedRoute'
 
 export function App() {
@@ -17,6 +23,13 @@ export function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route element={<AdminRoute />}>
+                <Route path="/admin/catalog" element={<CatalogPage />} />
+                <Route path="/admin/products/:id" element={<ProductDetailPage />} />
+                <Route path="/admin/policies" element={<PoliciesPage />} />
+                <Route path="/admin/warehouses" element={<WarehousesPage />} />
+                <Route path="/admin/plans" element={<PlansPage />} />
+              </Route>
             </Route>
           </Route>
         </Routes>

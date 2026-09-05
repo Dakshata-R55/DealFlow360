@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { APP_SUBTITLE, APP_TITLE } from '../../constants/app'
 import { logout } from '../../features/auth/authSlice'
 import { baseApi } from '../../stores/api/baseApi'
@@ -22,6 +22,25 @@ export function Header() {
         <p className="eyebrow">Dealflow360</p>
         <h1>{APP_TITLE}</h1>
         <p className="subtitle">{APP_SUBTITLE}</p>
+        {user?.role === 'ADMIN' ? (
+          <nav className="admin-nav" aria-label="Admin">
+            <Link className="link" to="/dashboard">
+              Dashboard
+            </Link>
+            <Link className="link" to="/admin/catalog">
+              Catalog
+            </Link>
+            <Link className="link" to="/admin/policies">
+              Policies
+            </Link>
+            <Link className="link" to="/admin/warehouses">
+              Warehouses
+            </Link>
+            <Link className="link" to="/admin/plans">
+              Plans
+            </Link>
+          </nav>
+        ) : null}
       </div>
       {isAuthenticated ? (
         <div className="header-actions">
