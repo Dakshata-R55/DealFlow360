@@ -69,7 +69,7 @@ export function CompanyStorefrontPage() {
         {thisDraft ? (
           <p>
             Request ({thisDraft.lines.reduce((sum, line) => sum + line.quantity, 0)}){' '}
-            <Link className="link" to={`/customer/requests/${thisDraft.id}`}>
+            <Link className="link" to={`/customer/requests?request=${thisDraft.id}`}>
               Open request
             </Link>
           </p>

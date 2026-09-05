@@ -47,11 +47,19 @@ export function canAccessQuotations(role: UserRole | undefined): boolean {
 }
 
 export function canWriteQuotations(role: UserRole | undefined): boolean {
-  return role === 'SALES_REP'
+  return canAccessQuotations(role)
+}
+
+export function canClaimTodo(role: UserRole | undefined): boolean {
+  return role === 'SALES_REP' || role === 'SALES_MANAGER'
 }
 
 export function isCustomerUser(role: UserRole | undefined): boolean {
   return role === 'CUSTOMER'
+}
+
+export function isCompanyUser(role: UserRole | undefined): boolean {
+  return role === 'ADMIN' || canAccessQuotations(role)
 }
 
 export function homePath(role: UserRole | undefined): string {

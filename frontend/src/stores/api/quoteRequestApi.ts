@@ -1,6 +1,9 @@
 import {
+  isCustomerQuotation,
+  isCustomerQuotationList,
   isQuoteRequest,
   isQuoteRequestList,
+  type CustomerQuotation,
   type QuoteRequest,
 } from '../../features/requests/types'
 import { isQuotation, type Quotation } from '../../features/quotations/types'
@@ -18,7 +21,7 @@ function unwrap<T>(isData: (value: unknown) => value is T, label: string) {
 
 export const quoteRequestApi = baseApi
   .enhanceEndpoints({
-    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuotationList'],
+    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuotationList', 'CustomerQuotation'],
   })
   .injectEndpoints({
     endpoints: (builder) => ({
@@ -50,7 +53,7 @@ export const quoteRequestApi = baseApi
       }),
       patchCustomerRequest: builder.mutation<
         QuoteRequest,
-        { id: number; body: { requestedDeliveryDate?: string | null; targetBudget?: number | null; expectedDiscountPercent?: number | null; notes?: string } }
+        { id: number; body: { requestedDeliveryDate?: string | null; expectedDiscountPercent?: number | null; notes?: string } }
       >({
         query: ({ id, body }) => ({
           url: `/api/customer/requests/${id}`,
@@ -123,6 +126,15 @@ export const quoteRequestApi = baseApi
         transformResponse: unwrap(isQuoteRequest, 'POST /api/customer/requests/{id}/cancel'),
         invalidatesTags: (_result, _error, id) => [{ type: 'QuoteRequest', id }, 'QuoteRequestList'],
       }),
+      withdrawCustomerRequest: builder.mutation<QuoteRequest, number>({
+        query: (id) => ({
+          url: `/api/customer/requests/${id}/withdraw`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isQuoteRequest),
+        }),
+        transformResponse: unwrap(isQuoteRequest, 'POST /api/customer/requests/{id}/withdraw'),
+        invalidatesTags: (_result, _error, id) => [{ type: 'QuoteRequest', id }, 'QuoteRequestList'],
+      }),
       getSellerRequests: builder.query<QuoteRequest[], void>({
         query: () => ({
           url: '/api/requests',
@@ -146,7 +158,55 @@ export const quoteRequestApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isQuotation),
         }),
         transformResponse: unwrap(isQuotation, 'POST /api/requests/{id}/convert-to-quotation'),
-        invalidatesTags: ['QuoteRequestList', 'QuotationList'],
+        invalidatesTags: ['QuoteRequestList', 'QuotationList', 'CustomerQuotation'],
+      }),
+      getCustomerQuotations: builder.query<CustomerQuotation[], void>({
+        query: () => ({
+          url: '/api/customer/quotations',
+          validateStatus: (_response, json) => isApiResponse(json, isCustomerQuotationList),
+        }),
+        transformResponse: unwrap(isCustomerQuotationList, 'GET /api/customer/quotations'),
+        providesTags: ['CustomerQuotation'],
+      }),
+      getCustomerQuotation: builder.query<CustomerQuotation, number>({
+        query: (id) => ({
+          url: `/api/customer/quotations/${id}`,
+          validateStatus: (_response, json) => isApiResponse(json, isCustomerQuotation),
+        }),
+        transformResponse: unwrap(isCustomerQuotation, 'GET /api/customer/quotations/{id}'),
+        providesTags: (_result, _error, id) => [{ type: 'CustomerQuotation', id }],
+      }),
+      counterCustomerQuotation: builder.mutation<
+        CustomerQuotation,
+        { id: number; body: { expectedDiscountPercent?: number | null; lines?: Array<{ productId: number; expectedDiscountPercent: number }> } }
+      >({
+        query: ({ id, body }) => ({
+          url: `/api/customer/quotations/${id}/counter`,
+          method: 'POST',
+          body,
+          validateStatus: (_response, json) => isApiResponse(json, isCustomerQuotation),
+        }),
+        transformResponse: unwrap(isCustomerQuotation, 'POST /api/customer/quotations/{id}/counter'),
+        invalidatesTags: (_result, _error, { id }) => [
+          'CustomerQuotation',
+          { type: 'CustomerQuotation', id },
+          'QuoteRequestList',
+          'QuotationList',
+        ],
+      }),
+      confirmCustomerCredit: builder.mutation<CustomerQuotation, number>({
+        query: (id) => ({
+          url: `/api/customer/quotations/${id}/confirm-credit`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isCustomerQuotation),
+        }),
+        transformResponse: unwrap(isCustomerQuotation, 'POST /api/customer/quotations/{id}/confirm-credit'),
+        invalidatesTags: (_result, _error, id) => [
+          'CustomerQuotation',
+          { type: 'CustomerQuotation', id },
+          'QuoteRequestList',
+          'QuotationList',
+        ],
       }),
     }),
   })
@@ -161,7 +221,12 @@ export const {
   useDeleteCustomerRequestLineMutation,
   useSubmitCustomerRequestMutation,
   useCancelCustomerRequestMutation,
+  useWithdrawCustomerRequestMutation,
   useGetSellerRequestsQuery,
   useGetSellerRequestQuery,
   useConvertRequestToQuotationMutation,
+  useGetCustomerQuotationsQuery,
+  useGetCustomerQuotationQuery,
+  useCounterCustomerQuotationMutation,
+  useConfirmCustomerCreditMutation,
 } = quoteRequestApi

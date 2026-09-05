@@ -30,17 +30,30 @@ export function PlansPage() {
         {plansQuery.isLoading ? <p className="muted">Loading plans…</p> : null}
         {plansQuery.isError ? <p className="error">Could not load plans.</p> : null}
         {(plansQuery.data ?? []).length === 0 ? <p className="muted">No plans yet.</p> : null}
-        <ul>
-          {(plansQuery.data ?? []).map((plan) => (
-            <li key={plan.id}>
-              {plan.name}
-              <span className="muted">
-                {' '}
-                · {plan.cycle} · {plan.prorationRule} · {plan.cancellationRule}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {(plansQuery.data ?? []).length > 0 ? (
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th>Cycle</th>
+                <th>Proration</th>
+                <th>Cancellation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(plansQuery.data ?? []).map((plan) => (
+                <tr key={plan.id}>
+                  <td>
+                    <span className="table-primary">{plan.name}</span>
+                  </td>
+                  <td>{plan.cycle}</td>
+                  <td>{plan.prorationRule}</td>
+                  <td>{plan.cancellationRule}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
         <form className="form" onSubmit={onCreate}>
           {error ? (
             <p className="error" role="alert">

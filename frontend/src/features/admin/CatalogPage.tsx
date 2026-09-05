@@ -103,14 +103,24 @@ export function CatalogPage() {
         {categories.isLoading ? <p className="muted">Loading categories…</p> : null}
         {categories.isError ? <p className="error">Could not load categories.</p> : null}
         {categoryRows.length > 0 ? (
-          <ul>
-            {categoryRows.map((category) => (
-              <li key={category.id}>
-                {category.name}
-                <span className="muted"> · {category.active ? 'active' : 'inactive'}</span>
-              </li>
-            ))}
-          </ul>
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categoryRows.map((category) => (
+                <tr key={category.id}>
+                  <td>
+                    <span className="table-primary">{category.name}</span>
+                  </td>
+                  <td>{category.active ? 'Active' : 'Inactive'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : null}
         <form className="form" onSubmit={onCreateCategory}>
           <label className="field">
@@ -140,19 +150,30 @@ export function CatalogPage() {
         {products.isLoading ? <p className="muted">Loading products…</p> : null}
         {products.isError ? <p className="error">Could not load products.</p> : null}
         {productRows.length > 0 ? (
-          <ul>
-            {productRows.map((product) => (
-              <li key={product.id}>
-                <Link className="link" to={`/admin/products/${product.id}`}>
-                  {product.name}
-                </Link>
-                <span className="muted">
-                  {' '}
-                  · {product.billingType} · {product.basePrice} / {product.unit}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Billing</th>
+                <th>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {productRows.map((product) => (
+                <tr key={product.id}>
+                  <td>
+                    <Link className="table-primary" to={`/admin/products/${product.id}`}>
+                      {product.name}
+                    </Link>
+                  </td>
+                  <td>{product.billingType}</td>
+                  <td>
+                    {product.basePrice} / {product.unit}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : null}
         <form className="form" onSubmit={onCreateProduct}>
           <label className="field">
@@ -275,18 +296,30 @@ export function CatalogPage() {
         {priceLists.isError ? <p className="error">Could not load price lists.</p> : null}
         {priceListRows.length === 0 ? <p className="muted">No price lists yet.</p> : null}
         {priceListRows.length > 0 ? (
-          <ul>
-            {priceListRows.map((list) => (
-              <li key={list.id}>
-                {list.name}
-                <span className="muted">
-                  {' '}
-                  · {tierName(list.customerTierId)} · {list.currency} · {list.items.length} override
-                  {list.items.length === 1 ? '' : 's'}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>List</th>
+                <th>Tier</th>
+                <th>Currency</th>
+                <th>Overrides</th>
+              </tr>
+            </thead>
+            <tbody>
+              {priceListRows.map((list) => (
+                <tr key={list.id}>
+                  <td>
+                    <span className="table-primary">{list.name}</span>
+                  </td>
+                  <td>{tierName(list.customerTierId)}</td>
+                  <td>{list.currency}</td>
+                  <td>
+                    {list.items.length} override{list.items.length === 1 ? '' : 's'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : null}
         <form className="form" onSubmit={onCreatePriceList}>
           <label className="field">

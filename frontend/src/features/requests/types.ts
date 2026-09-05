@@ -1,6 +1,6 @@
 import { isRecord } from '../../types/api'
 import type { BillingType } from '../admin/types'
-import { isListOf } from '../quotations/types'
+import { isListOf, type QuotationStatus } from '../quotations/types'
 
 export type SellerCompany = {
   id: number
@@ -63,7 +63,6 @@ export type QuoteRequest = {
   status: QuoteRequestStatus
   statusLabel: string
   requestedDeliveryDate: string | null
-  targetBudget: number | null
   expectedDiscountPercent: number | null
   notes: string
   quotationId: number | null
@@ -74,6 +73,8 @@ export type QuoteRequest = {
   catalogMrpTotal: number
   indicativeTotal: number
   expectedTotal: number
+  quotationStatus: QuotationStatus | null
+  quotationTotal: number | null
   lines: QuoteRequestLine[]
 }
 
@@ -168,7 +169,6 @@ export function isQuoteRequest(value: unknown): value is QuoteRequest {
     STATUSES.includes(value.status as QuoteRequestStatus) &&
     typeof value.statusLabel === 'string' &&
     (value.requestedDeliveryDate === null || typeof value.requestedDeliveryDate === 'string') &&
-    (value.targetBudget === null || isNumber(value.targetBudget)) &&
     (value.expectedDiscountPercent === null || isNumber(value.expectedDiscountPercent)) &&
     typeof value.notes === 'string' &&
     (value.quotationId === null || isNumber(value.quotationId)) &&
@@ -179,6 +179,15 @@ export function isQuoteRequest(value: unknown): value is QuoteRequest {
     isNumber(value.catalogMrpTotal) &&
     isNumber(value.indicativeTotal) &&
     isNumber(value.expectedTotal) &&
+    (value.quotationStatus === null ||
+      value.quotationStatus === 'DRAFT' ||
+      value.quotationStatus === 'PENDING_APPROVAL' ||
+      value.quotationStatus === 'APPROVED' ||
+      value.quotationStatus === 'NEGOTIATION' ||
+      value.quotationStatus === 'CONFIRMED' ||
+      value.quotationStatus === 'REJECTED' ||
+      value.quotationStatus === 'CANCELLED') &&
+    (value.quotationTotal === null || isNumber(value.quotationTotal)) &&
     Array.isArray(value.lines) &&
     value.lines.every(isQuoteRequestLine)
   )
@@ -205,3 +214,105 @@ export function rupee(value: number): string {
 export function percentLabel(value: number): string {
   return `${Number(value.toFixed(2))}%`
 }
+
+export type HomeBucket = 'active' | 'awaiting' | 'orders'
+
+export function homeBucket(request: QuoteRequest): HomeBucket | null {
+  if (request.status === 'CANCELLED' || request.status === 'CLOSED') {
+    return null
+  }
+  const quoteStatus = request.quotationStatus
+  if (quoteStatus === 'CONFIRMED') {
+    return 'orders'
+  }
+  if (quoteStatus === 'NEGOTIATION' || quoteStatus === 'APPROVED') {
+    return 'awaiting'
+  }
+  if (
+    request.status === 'DRAFT' ||
+    request.status === 'SUBMITTED' ||
+    request.status === 'UNDER_REVIEW' ||
+    quoteStatus === 'DRAFT' ||
+    quoteStatus === 'PENDING_APPROVAL'
+  ) {
+    return 'active'
+  }
+  return null
+}
+
+export function activeRequestLabel(request: QuoteRequest): string {
+  if (request.quotationStatus === 'PENDING_APPROVAL') {
+    return 'Pending Approval'
+  }
+  if (request.quotationStatus === 'DRAFT') {
+    return 'Seller is working this'
+  }
+  return request.statusLabel
+}
+
+export type CustomerQuotationLine = {
+  id: number
+  productId: number
+  productName: string
+  quantity: number
+  unitPrice: number
+  discountPercent: number
+  lineTotal: number
+  billingType: BillingType
+}
+
+export type CustomerQuotation = {
+  id: number
+  quoteNumber: string
+  sellerCompanyId: number
+  sellerCompanyName: string
+  status: QuotationStatus
+  statusLabel: string
+  subtotal: number
+  discountAmount: number
+  totalAmount: number
+  sourceRequestId: number
+  sourceRequestNumber: string
+  expectedDiscountPercent: number | null
+  lines: CustomerQuotationLine[]
+}
+
+function isCustomerQuotationLine(value: unknown): value is CustomerQuotationLine {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    isNumber(value.id) &&
+    isNumber(value.productId) &&
+    typeof value.productName === 'string' &&
+    isNumber(value.quantity) &&
+    isNumber(value.unitPrice) &&
+    isNumber(value.discountPercent) &&
+    isNumber(value.lineTotal) &&
+    (value.billingType === 'ONE_TIME' || value.billingType === 'RECURRING')
+  )
+}
+
+export function isCustomerQuotation(value: unknown): value is CustomerQuotation {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    isNumber(value.id) &&
+    typeof value.quoteNumber === 'string' &&
+    isNumber(value.sellerCompanyId) &&
+    typeof value.sellerCompanyName === 'string' &&
+    typeof value.status === 'string' &&
+    typeof value.statusLabel === 'string' &&
+    isNumber(value.subtotal) &&
+    isNumber(value.discountAmount) &&
+    isNumber(value.totalAmount) &&
+    isNumber(value.sourceRequestId) &&
+    typeof value.sourceRequestNumber === 'string' &&
+    (value.expectedDiscountPercent === null || isNumber(value.expectedDiscountPercent)) &&
+    Array.isArray(value.lines) &&
+    value.lines.every(isCustomerQuotationLine)
+  )
+}
+
+export const isCustomerQuotationList = isListOf(isCustomerQuotation)

@@ -85,23 +85,32 @@ export function WarehousesPage() {
       <Panel title="Warehouses">
         {warehousesQuery.isLoading ? <p className="muted">Loading warehouses…</p> : null}
         {warehouses.length === 0 ? <p className="muted">No warehouses yet.</p> : null}
-        <ul>
-          {warehouses.map((warehouse) => (
-            <li key={warehouse.id}>
-              <button
-                className="link"
-                type="button"
-                onClick={() => setSelectedId(warehouse.id)}
-              >
-                {warehouse.name}
-              </button>
-              <span className="muted">
-                {' '}
-                · {warehouse.location} · ship weight {warehouse.shippingCostWeight}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {warehouses.length > 0 ? (
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Warehouse</th>
+                <th>Location</th>
+                <th>Ship weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {warehouses.map((warehouse) => (
+                <tr
+                  key={warehouse.id}
+                  className={activeId === warehouse.id ? 'board-row board-row-selected' : 'board-row'}
+                  onClick={() => setSelectedId(warehouse.id)}
+                >
+                  <td>
+                    <span className="table-primary">{warehouse.name}</span>
+                  </td>
+                  <td>{warehouse.location}</td>
+                  <td>{warehouse.shippingCostWeight}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
         <form className="form" onSubmit={onCreateWarehouse}>
           <label className="field">
             Name

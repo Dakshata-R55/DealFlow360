@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { APP_SUBTITLE, APP_TITLE } from '../../constants/app'
 import { useSignupCustomerMutation } from '../../stores/api/authApi'
 import { useAppDispatch, useAppSelector } from '../../stores/hooks'
 import { apiErrorMessage } from '../../types/api'
 import { setCredentials } from './authSlice'
+import { AuthShell } from './AuthShell'
 import { homePath } from './types'
 
 export function CustomerSignupPage() {
@@ -39,17 +39,7 @@ export function CustomerSignupPage() {
   }
 
   return (
-    <div className="shell">
-      <header className="header">
-        <div>
-          <p className="eyebrow">Dealflow360</p>
-          <h1>{APP_TITLE}</h1>
-          <p className="subtitle">{APP_SUBTITLE}</p>
-        </div>
-      </header>
-      <main className="main">
-        <section className="panel">
-          <h2>Customer sign up</h2>
+    <AuthShell title="Customer sign up">
           <form className="form" onSubmit={onSubmit}>
             <label className="field">
               Name
@@ -97,8 +87,6 @@ export function CustomerSignupPage() {
               </Link>
             </div>
           </form>
-        </section>
-      </main>
-    </div>
+    </AuthShell>
   )
 }

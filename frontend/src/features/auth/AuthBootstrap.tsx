@@ -31,7 +31,7 @@ export function AuthBootstrap({ children }: { children: ReactNode }) {
 
   if (!hydrated) {
     return (
-      <div className="shell">
+      <div className="auth-page">
         <p className="muted">Restoring session…</p>
       </div>
     )

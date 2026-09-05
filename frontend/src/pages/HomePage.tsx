@@ -29,7 +29,16 @@ export function HomePage() {
 
   return (
     <Panel title="API health">
-      <StatusBadge state={state} />
+      <StatusBadge
+        label={
+          state.status === 'loading'
+            ? 'Checking API'
+            : state.status === 'ok'
+              ? 'API reachable'
+              : 'API unreachable'
+        }
+        tone={state.status === 'ok' ? 'success' : state.status === 'loading' ? 'info' : 'danger'}
+      />
       {state.status === 'loading' ? (
         <p className="muted">Requesting GET /api/health…</p>
       ) : null}

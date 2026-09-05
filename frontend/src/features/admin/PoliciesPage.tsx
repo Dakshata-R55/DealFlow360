@@ -104,14 +104,26 @@ export function PoliciesPage() {
           limits below are a separate policy — save them after you add a tier.
         </p>
         {tiersQuery.isLoading ? <p className="muted">Loading tiers…</p> : null}
-        <ul>
-          {(tiersQuery.data ?? []).map((tier) => (
-            <li key={tier.id}>
-              {tier.name}
-              <span className="muted"> · default limit {tier.defaultDiscountLimit}%</span>
-            </li>
-          ))}
-        </ul>
+        {(tiersQuery.data ?? []).length > 0 ? (
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Tier</th>
+                <th>Default limit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(tiersQuery.data ?? []).map((tier) => (
+                <tr key={tier.id}>
+                  <td>
+                    <span className="table-primary">{tier.name}</span>
+                  </td>
+                  <td>{tier.defaultDiscountLimit}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
         <form className="form" onSubmit={onCreateTier}>
           <label className="field">
             Name

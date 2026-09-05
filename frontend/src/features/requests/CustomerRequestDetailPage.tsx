@@ -1,39 +1,61 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import { Panel } from '../../components/common/Panel'
+import { StatusBadge, toneForTicket } from '../../components/ui/StatusBadge'
 import {
+  useCancelCustomerRequestMutation,
+  useDeleteCustomerRequestLineMutation,
   useGetCustomerRequestQuery,
   usePatchCustomerRequestMutation,
   useSubmitCustomerRequestMutation,
   useUpdateCustomerRequestLineMutation,
-  useDeleteCustomerRequestLineMutation,
+  useWithdrawCustomerRequestMutation,
 } from '../../stores/api/quoteRequestApi'
 import { apiErrorMessage } from '../../types/api'
 import { percentLabel, rupee, type QuoteRequestLine } from './types'
 
 export function CustomerRequestDetailPage() {
   const { id } = useParams()
-  const requestId = Number(id)
+  return <Navigate to={id ? `/customer/requests?request=${id}` : '/customer/requests'} replace />
+}
+
+export function CustomerRequestPanel({
+  requestId,
+  onOpenQuotation,
+  onRevoked,
+}: {
+  requestId: number
+  onOpenQuotation: (quotationId: number) => void
+  onRevoked: () => void
+}) {
   const query = useGetCustomerRequestQuery(requestId, { skip: !Number.isFinite(requestId) })
   const [patchRequest] = usePatchCustomerRequestMutation()
   const [submitRequest, submitState] = useSubmitCustomerRequestMutation()
+  const [withdrawRequest, withdrawState] = useWithdrawCustomerRequestMutation()
+  const [cancelRequest, cancelState] = useCancelCustomerRequestMutation()
   const [updateLine] = useUpdateCustomerRequestLineMutation()
   const [deleteLine] = useDeleteCustomerRequestLineMutation()
   const [delivery, setDelivery] = useState('')
-  const [budget, setBudget] = useState('')
   const [overallExpected, setOverallExpected] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const request = query.data
   const canEdit = request?.status === 'DRAFT'
+  const canRevoke =
+    request != null &&
+    request.quotationId == null &&
+    (request.status === 'DRAFT' || request.status === 'SUBMITTED' || request.status === 'UNDER_REVIEW')
+  const canWithdraw =
+    request != null &&
+    request.quotationId == null &&
+    (request.status === 'SUBMITTED' || request.status === 'UNDER_REVIEW')
 
   useEffect(() => {
     if (!request) {
       return
     }
     setDelivery(request.requestedDeliveryDate ?? '')
-    setBudget(request.targetBudget == null ? '' : String(request.targetBudget))
     setOverallExpected(request.expectedDiscountPercent == null ? '' : String(request.expectedDiscountPercent))
     setNotes(request.notes)
   }, [request])
@@ -41,7 +63,6 @@ export function CustomerRequestDetailPage() {
   function headerBody() {
     return {
       requestedDeliveryDate: delivery || null,
-      targetBudget: budget ? Number(budget) : null,
       expectedDiscountPercent: overallExpected ? Number(overallExpected) : null,
       notes,
     }
@@ -70,6 +91,25 @@ export function CustomerRequestDetailPage() {
     }
   }
 
+  async function onWithdraw() {
+    setError(null)
+    try {
+      await withdrawRequest(requestId).unwrap()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not pull request back'))
+    }
+  }
+
+  async function onRevoke() {
+    setError(null)
+    try {
+      await cancelRequest(requestId).unwrap()
+      onRevoked()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not revoke request'))
+    }
+  }
+
   if (!Number.isFinite(requestId)) {
     return <p className="error">Invalid request.</p>
   }
@@ -81,141 +121,169 @@ export function CustomerRequestDetailPage() {
   }
 
   return (
-    <div className="stack">
-      <p>
-        <Link className="link" to="/customer/requests">
-          ← My Requests
-        </Link>
-      </p>
-      <Panel title={`Request a Quote · ${request.requestNumber}`}>
-        <p>Seller: {request.sellerCompanyName}</p>
-        <p className="muted">
-          {request.statusLabel} · {request.customerTierName} standing
+    <Panel
+      title={request.requestNumber}
+      badge={
+        <StatusBadge
+          label={request.statusLabel}
+          tone={toneForTicket(request.status, request.quotationStatus)}
+        />
+      }
+    >
+      <p>Seller: {request.sellerCompanyName}</p>
+      <p className="muted">{request.customerTierName} standing</p>
+      {error ? (
+        <p className="error" role="alert">
+          {error}
         </p>
-        {request.lines.map((line) => (
-          <RequestLine
-            key={line.id}
-            line={line}
-            overallExpected={request.expectedDiscountPercent}
-            canEdit={canEdit}
-            onMinus={() =>
-              void updateLine({
-                requestId,
-                lineId: line.id,
-                body: { quantity: Math.max(1, line.quantity - 1) },
-              })
-            }
-            onPlus={() =>
-              void updateLine({
-                requestId,
-                lineId: line.id,
-                body: { quantity: line.quantity + 1 },
-              })
-            }
-            onExpected={(expectedDiscountPercent) =>
-              void updateLine({
-                requestId,
-                lineId: line.id,
-                body: { expectedDiscountPercent },
-              })
-            }
-            onRemove={() => void deleteLine({ requestId, lineId: line.id })}
-          />
-        ))}
-        <div className="request-totals">
-          <div>
-            <span>Catalog MRP</span>
-            <strong>{rupee(request.catalogMrpTotal)}</strong>
-          </div>
-          <div>
-            <span>After available discounts</span>
-            <strong>{rupee(request.indicativeTotal)}</strong>
-          </div>
-          <div className="indicative">
-            <span>After your expected discounts</span>
-            <strong>{rupee(request.expectedTotal)}</strong>
-          </div>
+      ) : null}
+      {canWithdraw || canRevoke ? (
+        <div className="ticket-controls">
+          {canWithdraw ? (
+            <button className="button" type="button" disabled={withdrawState.isLoading} onClick={() => void onWithdraw()}>
+              {withdrawState.isLoading ? 'Converting…' : 'Convert to Draft'}
+            </button>
+          ) : null}
+          {canRevoke ? (
+            <button className="link" type="button" disabled={cancelState.isLoading} onClick={() => void onRevoke()}>
+              {cancelState.isLoading ? 'Revoking…' : 'Revoke proposal'}
+            </button>
+          ) : null}
         </div>
-        <form className="form" onSubmit={(event) => void onSave(event)}>
-          <label className="field">
-            Requested delivery date
-            <input
-              className="input"
-              type="date"
-              value={delivery}
-              onChange={(event) => setDelivery(event.target.value)}
-              disabled={!canEdit}
-            />
-          </label>
-          <label className="field">
-            Overall expected discount %
-            <span className="muted">
-              Ask for a discount on the whole bill. Products still at the default available rate will use this when
-              the seller opens the draft. Set a higher % on a product if that item needs more.
-            </span>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={overallExpected}
-              onChange={(event) => setOverallExpected(event.target.value)}
-              disabled={!canEdit}
-              placeholder="Optional"
-            />
-          </label>
-          <label className="field">
-            Target budget
-            <span className="muted">
-              Optional rupee amount. MRP is {rupee(request.catalogMrpTotal)}. After your expected discounts the bill
-              is {rupee(request.expectedTotal)}.
-            </span>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              value={budget}
-              onChange={(event) => setBudget(event.target.value)}
-              disabled={!canEdit}
-              placeholder={String(Math.round(request.expectedTotal))}
-            />
-          </label>
-          <label className="field">
-            Notes
-            <textarea
-              className="input"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              disabled={!canEdit}
-            />
-          </label>
-          {error ? (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {canEdit ? (
-            <div className="form-actions">
-              <button className="button" type="submit">
-                Save Draft
-              </button>
-              <button
-                className="button"
-                type="button"
-                disabled={submitState.isLoading || request.lines.length === 0}
-                onClick={() => void onSubmit()}
-              >
-                {submitState.isLoading ? 'Submitting…' : 'Submit Request'}
-              </button>
-            </div>
-          ) : null}
-          {request.status === 'QUOTED' ? (
-            <p className="muted">Quotation is ready. Customer quotation view comes in a later slice.</p>
-          ) : null}
-        </form>
-      </Panel>
-    </div>
+      ) : null}
+      {request.lines.map((line) => (
+        <RequestLine
+          key={line.id}
+          line={line}
+          overallExpected={request.expectedDiscountPercent}
+          canEdit={canEdit}
+          onMinus={() =>
+            void updateLine({
+              requestId,
+              lineId: line.id,
+              body: { quantity: Math.max(1, line.quantity - 1) },
+            })
+          }
+          onPlus={() =>
+            void updateLine({
+              requestId,
+              lineId: line.id,
+              body: { quantity: line.quantity + 1 },
+            })
+          }
+          onExpected={(expectedDiscountPercent) =>
+            void updateLine({
+              requestId,
+              lineId: line.id,
+              body: { expectedDiscountPercent },
+            })
+          }
+          onRemove={() => void deleteLine({ requestId, lineId: line.id })}
+        />
+      ))}
+      <form className="form" onSubmit={(event) => void onSave(event)}>
+        <label className="field">
+          Overall expected discount %
+          <span className="muted">
+            Ask for a discount on the whole bill. The totals below update after you leave this field. Raise a product
+            if that item needs more than the overall rate.
+          </span>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={overallExpected}
+            onChange={(event) => setOverallExpected(event.target.value)}
+            onBlur={() => {
+              if (!canEdit) {
+                return
+              }
+              void patchRequest({ id: requestId, body: headerBody() })
+                .unwrap()
+                .catch((err) => setError(apiErrorMessage(err, 'Could not save request')))
+            }}
+            disabled={!canEdit}
+            placeholder="Optional"
+          />
+        </label>
+      </form>
+      <div className="request-totals">
+        <div>
+          <span>Catalog MRP</span>
+          <strong>{rupee(request.catalogMrpTotal)}</strong>
+        </div>
+        <div>
+          <span>After available discounts</span>
+          <strong>{rupee(request.indicativeTotal)}</strong>
+        </div>
+        <div className="indicative">
+          <span>After your expected discounts</span>
+          <strong>{rupee(request.expectedTotal)}</strong>
+        </div>
+      </div>
+      <form className="form" onSubmit={(event) => void onSave(event)}>
+        <label className="field">
+          Requested delivery date
+          <input
+            className="input"
+            type="date"
+            value={delivery}
+            onChange={(event) => setDelivery(event.target.value)}
+            disabled={!canEdit}
+          />
+        </label>
+        <label className="field">
+          Notes
+          <textarea
+            className="input"
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            disabled={!canEdit}
+          />
+        </label>
+        {canEdit ? (
+          <div className="form-actions">
+            <button className="button" type="submit">
+              Save Draft
+            </button>
+            <button
+              className="button"
+              type="button"
+              disabled={submitState.isLoading || request.lines.length === 0}
+              onClick={() => void onSubmit()}
+            >
+              {submitState.isLoading ? 'Submitting…' : 'Submit Request'}
+            </button>
+          </div>
+        ) : null}
+        {request.status === 'QUOTED' &&
+        (request.quotationStatus === 'DRAFT' || request.quotationStatus === 'PENDING_APPROVAL') ? (
+          <p className="muted">
+            Seller is working this
+            {request.quotationStatus === 'PENDING_APPROVAL' ? ' — Pending Approval' : ' as a draft'}. It stays an
+            active request until they send you an offer.
+          </p>
+        ) : null}
+        {request.quotationId &&
+        (request.quotationStatus === 'NEGOTIATION' ||
+          request.quotationStatus === 'APPROVED' ||
+          request.quotationStatus === 'CONFIRMED') ? (
+          <button
+            className="link"
+            type="button"
+            onClick={() => {
+              if (request.quotationId) {
+                onOpenQuotation(request.quotationId)
+              }
+            }}
+          >
+            Open quotation
+          </button>
+        ) : null}
+      </form>
+    </Panel>
   )
 }
 
@@ -271,9 +339,7 @@ function RequestLine({
       </p>
       <label className="field">
         Expected discount %
-        <span className="muted">
-          Starts at the available rate. Raise it if you need more on this product.
-        </span>
+        <span className="muted">Starts at the available rate. Raise it if you need more on this product.</span>
         <input
           className="input"
           type="number"
@@ -289,9 +355,7 @@ function RequestLine({
       {line.independentExpected ? (
         <p className="expected-independent">Independent expected {percentLabel(line.expectedDiscountPercent)}</p>
       ) : overallExpected != null ? (
-        <p className="expected-default">
-          By default uses overall {percentLabel(overallExpected)}
-        </p>
+        <p className="expected-default">By default uses overall {percentLabel(overallExpected)}</p>
       ) : (
         <p className="expected-default">By default {percentLabel(line.availableDiscountPercent)}</p>
       )}
