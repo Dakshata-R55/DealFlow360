@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Modal } from '../../components/common/Modal'
 import { Panel } from '../../components/common/Panel'
 import {
   useCreateWarehouseMutation,
@@ -9,6 +10,8 @@ import {
 } from '../../stores/api/configApi'
 import { apiErrorMessage } from '../../types/api'
 
+type WarehouseModal = 'warehouse' | 'stock' | null
+
 export function WarehousesPage() {
   const warehousesQuery = useGetWarehousesQuery()
   const productsQuery = useGetProductsQuery()
@@ -16,6 +19,7 @@ export function WarehousesPage() {
   const inventoryQuery = useGetWarehouseInventoryQuery(selectedId ?? 0, { skip: selectedId == null })
   const [createWarehouse, createWarehouseState] = useCreateWarehouseMutation()
   const [upsertInventory, upsertInventoryState] = useUpsertInventoryMutation()
+  const [modal, setModal] = useState<WarehouseModal>(null)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
@@ -31,6 +35,13 @@ export function WarehousesPage() {
     setSelectedId(warehouses[0].id)
   }
 
+  const activeWarehouse = warehouses.find((row) => row.id === activeId)
+
+  function closeModal() {
+    setModal(null)
+    setError(null)
+  }
+
   async function onCreateWarehouse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
@@ -43,6 +54,7 @@ export function WarehousesPage() {
       setName('')
       setLocation('')
       setSelectedId(created.id)
+      closeModal()
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not create warehouse'))
     }
@@ -65,6 +77,7 @@ export function WarehousesPage() {
           reorderQty: Number(reorderQty),
         },
       }).unwrap()
+      closeModal()
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save stock'))
     }
@@ -76,15 +89,15 @@ export function WarehousesPage() {
 
   return (
     <div className="stack">
-      {error ? (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <Panel title="Warehouses">
+      <Panel
+        title="Warehouses"
+        badge={
+          <button className="button" type="button" onClick={() => setModal('warehouse')}>
+            Add warehouse
+          </button>
+        }
+      >
         {warehousesQuery.isLoading ? <p className="muted">Loading warehouses…</p> : null}
-        {warehouses.length === 0 ? <p className="muted">No warehouses yet.</p> : null}
         {warehouses.length > 0 ? (
           <table className="board-table">
             <thead>
@@ -110,59 +123,106 @@ export function WarehousesPage() {
               ))}
             </tbody>
           </table>
+        ) : warehousesQuery.isSuccess ? (
+          <p className="muted">No warehouses yet.</p>
         ) : null}
-        <form className="form" onSubmit={onCreateWarehouse}>
-          <label className="field">
-            Name
-            <input className="input" value={name} onChange={(event) => setName(event.target.value)} required />
-          </label>
-          <label className="field">
-            Location
-            <input
-              className="input"
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Shipping cost weight
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={shippingCostWeight}
-              onChange={(event) => setShippingCostWeight(event.target.value)}
-              required
-            />
-          </label>
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={createWarehouseState.isLoading}>
-              {createWarehouseState.isLoading ? 'Saving…' : 'Add warehouse'}
-            </button>
-          </div>
-        </form>
       </Panel>
 
-      <Panel title={activeId == null ? 'Stock' : `Stock · warehouse ${activeId}`}>
+      <Panel
+        title={activeWarehouse ? `Stock · ${activeWarehouse.name}` : 'Stock'}
+        badge={
+          activeId != null ? (
+            <button className="button" type="button" onClick={() => setModal('stock')}>
+              Update stock
+            </button>
+          ) : undefined
+        }
+      >
         {activeId == null ? <p className="muted">Create a warehouse first.</p> : null}
         {inventoryQuery.isFetching ? <p className="muted">Loading stock…</p> : null}
-        <ul>
-          {(inventoryQuery.data ?? []).map((row) => (
-            <li key={`${row.warehouseId}-${row.productId}`}>
-              {productName(row.productId)}
-              <span className="muted">
-                {' '}
-                · on hand {row.onHand} · reserved {row.reserved} · available {row.available} · min{' '}
-                {row.minStock} · reorder {row.reorderQty}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {activeId != null ? (
-          <form className="form" onSubmit={onSaveStock}>
+        {activeId != null && (inventoryQuery.data ?? []).length > 0 ? (
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>On hand</th>
+                <th>Reserved</th>
+                <th>Available</th>
+                <th>Min</th>
+                <th>Reorder</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(inventoryQuery.data ?? []).map((row) => (
+                <tr key={`${row.warehouseId}-${row.productId}`}>
+                  <td>
+                    <span className="table-primary">{productName(row.productId)}</span>
+                  </td>
+                  <td>{row.onHand}</td>
+                  <td>{row.reserved}</td>
+                  <td>{row.available}</td>
+                  <td>{row.minStock}</td>
+                  <td>{row.reorderQty}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : activeId != null && inventoryQuery.isSuccess ? (
+          <p className="muted">No stock rows yet.</p>
+        ) : null}
+      </Panel>
+
+      {modal === 'warehouse' ? (
+        <Modal title="Add warehouse" onClose={closeModal}>
+          <form className="form" onSubmit={onCreateWarehouse}>
+            {error ? (
+              <p className="error field-full" role="alert">
+                {error}
+              </p>
+            ) : null}
             <label className="field">
+              Name
+              <input className="input" value={name} onChange={(event) => setName(event.target.value)} required />
+            </label>
+            <label className="field">
+              Location
+              <input
+                className="input"
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field field-full">
+              Shipping cost weight
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={shippingCostWeight}
+                onChange={(event) => setShippingCostWeight(event.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={createWarehouseState.isLoading}>
+                {createWarehouseState.isLoading ? 'Saving…' : 'Add warehouse'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {modal === 'stock' && activeId != null ? (
+        <Modal title="Update stock" onClose={closeModal}>
+          <form className="form" onSubmit={onSaveStock}>
+            {error ? (
+              <p className="error field-full" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <label className="field field-full">
               Product
               <select
                 className="input"
@@ -202,7 +262,7 @@ export function WarehousesPage() {
                 required
               />
             </label>
-            <label className="field">
+            <label className="field field-full">
               Reorder qty
               <input
                 className="input"
@@ -220,8 +280,8 @@ export function WarehousesPage() {
               </button>
             </div>
           </form>
-        ) : null}
-      </Panel>
+        </Modal>
+      ) : null}
     </div>
   )
 }

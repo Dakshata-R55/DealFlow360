@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Modal } from '../../components/common/Modal'
 import { Panel } from '../../components/common/Panel'
 import {
   useCreateUpsellRuleMutation,
@@ -15,6 +16,8 @@ import {
 import { apiErrorMessage } from '../../types/api'
 import type { BillingType } from './types'
 
+type ProductModal = 'edit' | 'variant' | 'override' | 'upsell' | null
+
 export function ProductDetailPage() {
   const params = useParams()
   const productId = Number(params.id)
@@ -27,6 +30,7 @@ export function ProductDetailPage() {
   const [createVariant, createVariantState] = useCreateVariantMutation()
   const [upsertPrice, upsertPriceState] = useUpsertPriceListItemMutation()
   const [createUpsell, createUpsellState] = useCreateUpsellRuleMutation()
+  const [modal, setModal] = useState<ProductModal>(null)
   const [error, setError] = useState<string | null>(null)
 
   const product = productQuery.data
@@ -76,6 +80,7 @@ export function ProductDetailPage() {
           billingType,
         },
       }).unwrap()
+      setModal(null)
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save product'))
     }
@@ -94,6 +99,7 @@ export function ProductDetailPage() {
         },
       }).unwrap()
       setAttributeValue('')
+      setModal(null)
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not add variant'))
     }
@@ -108,6 +114,7 @@ export function ProductDetailPage() {
         productId,
         body: { price: Number(overridePrice) },
       }).unwrap()
+      setModal(null)
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save price override'))
     }
@@ -131,6 +138,7 @@ export function ProductDetailPage() {
         promotionBoost: Number(promotionBoost),
         minMarginPct: Number(minMarginPct),
       }).unwrap()
+      setModal(null)
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not add upsell pairing'))
     }
@@ -178,129 +186,77 @@ export function ProductDetailPage() {
         </p>
       ) : null}
 
-      <Panel title={`Product · ${product.name}`}>
-        <form className="form" onSubmit={onSaveProduct}>
-          <label className="field">
-            Name
-            <input className="input" value={name} onChange={(event) => setName(event.target.value)} required />
-          </label>
-          <label className="field">
-            Description
-            <input
-              className="input"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Unit
-            <input className="input" value={unit} onChange={(event) => setUnit(event.target.value)} required />
-          </label>
-          <label className="field">
-            Selling price
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={basePrice}
-              onChange={(event) => setBasePrice(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Cost price
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={costPrice}
-              onChange={(event) => setCostPrice(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Tax percent
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={taxPercent}
-              onChange={(event) => setTaxPercent(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Billing type
-            <select
-              className="input"
-              value={billingType}
-              onChange={(event) => setBillingType(event.target.value as BillingType)}
-            >
-              <option value="ONE_TIME">ONE_TIME</option>
-              <option value="RECURRING">RECURRING</option>
-            </select>
-          </label>
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={updateProductState.isLoading}>
-              {updateProductState.isLoading ? 'Saving…' : 'Save product'}
-            </button>
+      <Panel
+        title={`Product · ${product.name}`}
+        badge={
+          <button className="button" type="button" onClick={() => setModal('edit')}>
+            Edit
+          </button>
+        }
+      >
+        <dl className="facts">
+          <div>
+            <dt>Name</dt>
+            <dd>{product.name}</dd>
           </div>
-        </form>
+          <div>
+            <dt>Description</dt>
+            <dd>{product.description || '—'}</dd>
+          </div>
+          <div>
+            <dt>Unit</dt>
+            <dd>{product.unit}</dd>
+          </div>
+          <div>
+            <dt>Selling price</dt>
+            <dd>{product.basePrice}</dd>
+          </div>
+          <div>
+            <dt>Cost price</dt>
+            <dd>{product.costPrice}</dd>
+          </div>
+          <div>
+            <dt>Tax percent</dt>
+            <dd>{product.taxPercent}</dd>
+          </div>
+          <div>
+            <dt>Billing</dt>
+            <dd>{product.billingType}</dd>
+          </div>
+        </dl>
       </Panel>
 
-      <Panel title="Variants">
+      <Panel
+        title="Variants"
+        badge={
+          <button className="button" type="button" onClick={() => setModal('variant')}>
+            Add variant
+          </button>
+        }
+      >
         {product.variants.length === 0 ? <p className="muted">No variants yet.</p> : null}
-        <ul>
-          {product.variants.map((variant) => (
-            <li key={variant.id}>
-              {variant.attributeName}: {variant.attributeValue}
-              <span className="muted"> · extra {variant.extraPrice}</span>
-            </li>
-          ))}
-        </ul>
-        <form className="form" onSubmit={onAddVariant}>
-          <label className="field">
-            Attribute
-            <input
-              className="input"
-              value={attributeName}
-              onChange={(event) => setAttributeName(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Value
-            <input
-              className="input"
-              value={attributeValue}
-              onChange={(event) => setAttributeValue(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Extra price
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={extraPrice}
-              onChange={(event) => setExtraPrice(event.target.value)}
-              required
-            />
-          </label>
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={createVariantState.isLoading}>
-              {createVariantState.isLoading ? 'Saving…' : 'Add variant'}
-            </button>
-          </div>
-        </form>
+        {product.variants.length > 0 ? (
+          <ul>
+            {product.variants.map((variant) => (
+              <li key={variant.id}>
+                {variant.attributeName}: {variant.attributeValue}
+                <span className="muted"> · extra {variant.extraPrice}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </Panel>
 
-      <Panel title="Price list override">
+      <Panel
+        title="Price list override"
+        badge={
+          priceLists.length > 0 ? (
+            <button className="button" type="button" onClick={() => setModal('override')}>
+              Save override
+            </button>
+          ) : null
+        }
+      >
         <p className="muted">
           Each customer tier has a price list (Bronze, Silver, Gold, Platinum if you added them). Override is
           this product’s special price on that list. No row means the quote uses selling price ({product.basePrice}).
@@ -330,9 +286,153 @@ export function ProductDetailPage() {
             ))}
           </ul>
         ) : null}
-        {priceLists.length > 0 ? (
-          <form className="form" onSubmit={onSaveOverride}>
+      </Panel>
+
+      <Panel
+        title="Upsell pairing"
+        badge={
+          <button className="button" type="button" onClick={() => setModal('upsell')}>
+            Add pairing
+          </button>
+        }
+      >
+        {pairings.length === 0 ? <p className="muted">No pairings from this product yet.</p> : null}
+        {pairings.length > 0 ? (
+          <ul>
+            {pairings.map((rule) => (
+              <li key={rule.id}>
+                {productName(rule.suggestedProductId)}
+                <span className="muted">
+                  {' '}
+                  · score {rule.score} · boost {rule.promotionBoost} · min margin {rule.minMarginPct}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </Panel>
+
+      {modal === 'edit' ? (
+        <Modal title="Edit product" onClose={() => setModal(null)}>
+          <form className="form" onSubmit={onSaveProduct}>
+            <label className="field field-full">
+              Name
+              <input className="input" value={name} onChange={(event) => setName(event.target.value)} required />
+            </label>
+            <label className="field field-full">
+              Description
+              <input
+                className="input"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
             <label className="field">
+              Unit
+              <input className="input" value={unit} onChange={(event) => setUnit(event.target.value)} required />
+            </label>
+            <label className="field">
+              Billing type
+              <select
+                className="input"
+                value={billingType}
+                onChange={(event) => setBillingType(event.target.value as BillingType)}
+              >
+                <option value="ONE_TIME">ONE_TIME</option>
+                <option value="RECURRING">RECURRING</option>
+              </select>
+            </label>
+            <label className="field">
+              Selling price
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={basePrice}
+                onChange={(event) => setBasePrice(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Cost price
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={costPrice}
+                onChange={(event) => setCostPrice(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field field-full">
+              Tax percent
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={taxPercent}
+                onChange={(event) => setTaxPercent(event.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={updateProductState.isLoading}>
+                {updateProductState.isLoading ? 'Saving…' : 'Save product'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {modal === 'variant' ? (
+        <Modal title="Add variant" onClose={() => setModal(null)}>
+          <form className="form" onSubmit={onAddVariant}>
+            <label className="field">
+              Attribute
+              <input
+                className="input"
+                value={attributeName}
+                onChange={(event) => setAttributeName(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Value
+              <input
+                className="input"
+                value={attributeValue}
+                onChange={(event) => setAttributeValue(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field field-full">
+              Extra price
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={extraPrice}
+                onChange={(event) => setExtraPrice(event.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={createVariantState.isLoading}>
+                {createVariantState.isLoading ? 'Saving…' : 'Add variant'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {modal === 'override' ? (
+        <Modal title="Save override" onClose={() => setModal(null)}>
+          <form className="form" onSubmit={onSaveOverride}>
+            <label className="field field-full">
               Price list
               <select
                 className="input"
@@ -348,7 +448,7 @@ export function ProductDetailPage() {
                 ))}
               </select>
             </label>
-            <label className="field">
+            <label className="field field-full">
               Override price
               <input
                 className="input"
@@ -366,84 +466,74 @@ export function ProductDetailPage() {
               </button>
             </div>
           </form>
-        ) : null}
-      </Panel>
+        </Modal>
+      ) : null}
 
-      <Panel title="Upsell pairing">
-        {pairings.length === 0 ? <p className="muted">No pairings from this product yet.</p> : null}
-        <ul>
-          {pairings.map((rule) => (
-            <li key={rule.id}>
-              {productName(rule.suggestedProductId)}
-              <span className="muted">
-                {' '}
-                · score {rule.score} · boost {rule.promotionBoost} · min margin {rule.minMarginPct}%
-              </span>
-            </li>
-          ))}
-        </ul>
-        <form className="form" onSubmit={onAddUpsell}>
-          <label className="field">
-            Suggested product
-            <select
-              className="input"
-              value={suggestedProductId}
-              onChange={(event) => setSuggestedProductId(event.target.value)}
-              required
-            >
-              <option value="">Select product</option>
-              {(productsQuery.data ?? [])
-                .filter((row) => row.id !== productId)
-                .map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="field">
-            Score
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={score}
-              onChange={(event) => setScore(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Promotion boost
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={promotionBoost}
-              onChange={(event) => setPromotionBoost(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Min margin %
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={minMarginPct}
-              onChange={(event) => setMinMarginPct(event.target.value)}
-              required
-            />
-          </label>
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={createUpsellState.isLoading}>
-              {createUpsellState.isLoading ? 'Saving…' : 'Add pairing'}
-            </button>
-          </div>
-        </form>
-      </Panel>
+      {modal === 'upsell' ? (
+        <Modal title="Add pairing" onClose={() => setModal(null)}>
+          <form className="form" onSubmit={onAddUpsell}>
+            <label className="field field-full">
+              Suggested product
+              <select
+                className="input"
+                value={suggestedProductId}
+                onChange={(event) => setSuggestedProductId(event.target.value)}
+                required
+              >
+                <option value="">Select product</option>
+                {(productsQuery.data ?? [])
+                  .filter((row) => row.id !== productId)
+                  .map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="field">
+              Score
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={score}
+                onChange={(event) => setScore(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Promotion boost
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={promotionBoost}
+                onChange={(event) => setPromotionBoost(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field field-full">
+              Min margin %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={minMarginPct}
+                onChange={(event) => setMinMarginPct(event.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={createUpsellState.isLoading}>
+                {createUpsellState.isLoading ? 'Saving…' : 'Add pairing'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
     </div>
   )
 }

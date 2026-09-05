@@ -86,7 +86,7 @@ public class PolicyService {
     }
 
     private static void validateThresholds(ApprovalPolicyReplaceRequest request) {
-        requireAtLeast(request.financeLineExcessPercent(), request.managerLineExcessPercent(), "Finance line excess must be at least the manager line excess");
+        requireAtLeast(request.financeLineExcessPercent(), request.managerLineExcessPercent(), "Finance product excess must be at least the manager product excess");
         requireAtLeast(request.financeQuoteExcessPercent(), request.managerQuoteExcessPercent(), "Finance quote excess must be at least the manager quote excess");
     }
 

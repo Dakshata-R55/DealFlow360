@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Modal } from '../../components/common/Modal'
 import { Panel } from '../../components/common/Panel'
 import {
   useCreateCustomerTierMutation,
@@ -10,6 +11,13 @@ import {
   useReplaceDiscountPolicyMutation,
 } from '../../stores/api/configApi'
 import { apiErrorMessage } from '../../types/api'
+type PolicyModal = 'standing-add' | 'standing-edit' | 'category' | 'approval' | null
+
+type PolicyRow = {
+  customerTierId: number | null
+  categoryId: number | null
+  maxDiscountPct: number
+}
 
 export function PoliciesPage() {
   const tiersQuery = useGetCustomerTiersQuery()
@@ -19,48 +27,109 @@ export function PoliciesPage() {
   const [createTier, createTierState] = useCreateCustomerTierMutation()
   const [replaceDiscount, replaceDiscountState] = useReplaceDiscountPolicyMutation()
   const [replaceApproval, replaceApprovalState] = useReplaceApprovalPolicyMutation()
+  const [modal, setModal] = useState<PolicyModal>(null)
   const [error, setError] = useState<string | null>(null)
   const [tierName, setTierName] = useState('')
   const [tierLimit, setTierLimit] = useState('5')
+  const [editStandingId, setEditStandingId] = useState<number | null>(null)
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [categoryLimit, setCategoryLimit] = useState('')
 
-  async function onCreateTier(event: FormEvent<HTMLFormElement>) {
+  const approval = approvalQuery.data
+  const tiers = tiersQuery.data ?? []
+  const categories = categoriesQuery.data ?? []
+  const policies = discountQuery.data ?? []
+  const selectedCategory = categories.find((row) => row.id === categoryId) ?? categories[0] ?? null
+
+  function closeModal() {
+    setModal(null)
+    setError(null)
+    setEditStandingId(null)
+  }
+
+  function ceilingForStanding(tierId: number, fallback: number) {
+    return policies.find((row) => row.customerTierId === tierId)?.maxDiscountPct ?? fallback
+  }
+
+  function ceilingForCategory(id: number) {
+    return policies.find((row) => row.categoryId === id)?.maxDiscountPct ?? 0
+  }
+
+  function buildPolicies(patch: PolicyRow): PolicyRow[] {
+    const rows: PolicyRow[] = []
+    let standingPatched = false
+    for (const tier of tiers) {
+      const pct =
+        patch.customerTierId === tier.id ? patch.maxDiscountPct : ceilingForStanding(tier.id, tier.defaultDiscountLimit)
+      if (patch.customerTierId === tier.id) {
+        standingPatched = true
+      }
+      rows.push({ customerTierId: tier.id, categoryId: null, maxDiscountPct: pct })
+    }
+    if (patch.customerTierId != null && !standingPatched) {
+      rows.push({ customerTierId: patch.customerTierId, categoryId: null, maxDiscountPct: patch.maxDiscountPct })
+    }
+    for (const category of categories) {
+      const pct = patch.categoryId === category.id ? patch.maxDiscountPct : ceilingForCategory(category.id)
+      rows.push({ customerTierId: null, categoryId: category.id, maxDiscountPct: pct })
+    }
+    return rows
+  }
+
+  async function onCreateStanding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    const pct = Number(tierLimit)
     try {
-      await createTier({ name: tierName, defaultDiscountLimit: Number(tierLimit) }).unwrap()
+      const created = await createTier({ name: tierName.trim(), defaultDiscountLimit: pct }).unwrap()
+      await replaceDiscount({
+        policies: buildPolicies({ customerTierId: created.id, categoryId: null, maxDiscountPct: pct }),
+      }).unwrap()
       setTierName('')
+      setTierLimit('5')
+      closeModal()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not create tier'))
+      setError(apiErrorMessage(err, 'Could not add standing'))
     }
   }
 
-  async function onSaveDiscount(event: FormEvent<HTMLFormElement>) {
+  async function onSaveStanding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (editStandingId == null) {
+      return
+    }
     setError(null)
-    const form = new FormData(event.currentTarget)
-    const policies: Array<{
-      customerTierId: number | null
-      categoryId: number | null
-      maxDiscountPct: number
-    }> = []
-    for (const tier of tiersQuery.data ?? []) {
-      policies.push({
-        customerTierId: tier.id,
-        categoryId: null,
-        maxDiscountPct: Number(form.get(`tier-${tier.id}`)),
-      })
-    }
-    for (const category of categoriesQuery.data ?? []) {
-      policies.push({
-        customerTierId: null,
-        categoryId: category.id,
-        maxDiscountPct: Number(form.get(`category-${category.id}`)),
-      })
-    }
     try {
-      await replaceDiscount({ policies }).unwrap()
+      await replaceDiscount({
+        policies: buildPolicies({
+          customerTierId: editStandingId,
+          categoryId: null,
+          maxDiscountPct: Number(tierLimit),
+        }),
+      }).unwrap()
+      closeModal()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not save discount policy'))
+      setError(apiErrorMessage(err, 'Could not save ceiling'))
+    }
+  }
+
+  async function onSaveCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (selectedCategory == null) {
+      return
+    }
+    setError(null)
+    try {
+      await replaceDiscount({
+        policies: buildPolicies({
+          customerTierId: null,
+          categoryId: selectedCategory.id,
+          maxDiscountPct: Number(categoryLimit),
+        }),
+      }).unwrap()
+      closeModal()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save category ceiling'))
     }
   }
 
@@ -75,148 +144,256 @@ export function PoliciesPage() {
         managerQuoteExcessPercent: Number(form.get('managerQuote')),
         financeQuoteExcessPercent: Number(form.get('financeQuote')),
       }).unwrap()
+      closeModal()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not save approval policy'))
+      setError(apiErrorMessage(err, 'Could not save who must approve'))
     }
   }
 
-  function discountForTier(tierId: number) {
-    return discountQuery.data?.find((row) => row.customerTierId === tierId)?.maxDiscountPct ?? 0
-  }
-
-  function discountForCategory(categoryId: number) {
-    return discountQuery.data?.find((row) => row.categoryId === categoryId)?.maxDiscountPct ?? 0
-  }
-
-  const approval = approvalQuery.data
+  const editStanding = tiers.find((tier) => tier.id === editStandingId)
+  const savingDiscount = replaceDiscountState.isLoading
 
   return (
     <div className="stack">
-      {error ? (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <Panel title="Customer tiers">
-        <p className="muted">
-          Adding a tier also creates a default INR price list. Extra currencies are added on Catalog. Discount
-          limits below are a separate policy — save them after you add a tier.
-        </p>
-        {tiersQuery.isLoading ? <p className="muted">Loading tiers…</p> : null}
-        {(tiersQuery.data ?? []).length > 0 ? (
+      <Panel
+        title="Customer standing"
+        badge={
+          <button className="button" type="button" onClick={() => setModal('standing-add')}>
+            Add standing
+          </button>
+        }
+      >
+        <p className="muted">How far a sales rep may discount for this customer standing. Extra currencies are added on Catalog.</p>
+        {tiersQuery.isLoading ? <p className="muted">Loading standing…</p> : null}
+        {tiers.length > 0 ? (
           <table className="board-table">
             <thead>
               <tr>
-                <th>Tier</th>
-                <th>Default limit</th>
+                <th>Standing</th>
+                <th>Discount ceiling</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {(tiersQuery.data ?? []).map((tier) => (
+              {tiers.map((tier) => (
                 <tr key={tier.id}>
                   <td>
                     <span className="table-primary">{tier.name}</span>
                   </td>
-                  <td>{tier.defaultDiscountLimit}%</td>
+                  <td>{ceilingForStanding(tier.id, tier.defaultDiscountLimit)}%</td>
+                  <td>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      onClick={() => {
+                        setEditStandingId(tier.id)
+                        setTierLimit(String(ceilingForStanding(tier.id, tier.defaultDiscountLimit)))
+                        setModal('standing-edit')
+                      }}
+                    >
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        ) : tiersQuery.isSuccess ? (
+          <p className="muted">No standing yet.</p>
         ) : null}
-        <form className="form" onSubmit={onCreateTier}>
-          <label className="field">
-            Name
-            <input
-              className="input"
-              value={tierName}
-              onChange={(event) => setTierName(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Default discount limit %
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={tierLimit}
-              onChange={(event) => setTierLimit(event.target.value)}
-              required
-            />
-          </label>
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={createTierState.isLoading}>
-              {createTierState.isLoading ? 'Saving…' : 'Add tier'}
-            </button>
-          </div>
-        </form>
       </Panel>
 
-      <Panel title="Discount limits">
-        <p className="muted">How far a sales rep may discount for each customer standing and product category.</p>
-        {discountQuery.isLoading || tiersQuery.isLoading || categoriesQuery.isLoading ? (
-          <p className="muted">Loading discount limits…</p>
+      <Panel title="Category ceilings">
+        <p className="muted">Pick a product category to see or change its discount ceiling. Standings are not listed here.</p>
+        {categoriesQuery.isLoading || discountQuery.isLoading ? <p className="muted">Loading categories…</p> : null}
+        {categoriesQuery.isError ? <p className="error">Could not load categories.</p> : null}
+        {categories.length === 0 && categoriesQuery.isSuccess ? (
+          <p className="muted">Add categories on Catalog first.</p>
         ) : null}
-        {discountQuery.isError ? <p className="error">Could not load discount policy.</p> : null}
-        {discountQuery.isSuccess && tiersQuery.isSuccess && categoriesQuery.isSuccess ? (
-          <form
-            className="form"
-            onSubmit={onSaveDiscount}
-            key={(discountQuery.data ?? []).map((row) => row.id).join('-') || 'discount-empty'}
-          >
-            <p className="muted">Customer tier limits</p>
-            {(tiersQuery.data ?? []).map((tier) => (
-              <label className="field" key={`tier-${tier.id}`}>
-                {tier.name} %
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  name={`tier-${tier.id}`}
-                  defaultValue={discountForTier(tier.id)}
-                  required
-                />
-              </label>
-            ))}
-            <p className="muted">Category limits</p>
-            {(categoriesQuery.data ?? []).map((category) => (
-              <label className="field" key={`category-${category.id}`}>
-                {category.name} %
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  name={`category-${category.id}`}
-                  defaultValue={discountForCategory(category.id)}
-                  required
-                />
-              </label>
-            ))}
+        {selectedCategory ? (
+          <div className="policy-picker">
+            <label className="field">
+              Category
+              <select
+                className="input"
+                value={selectedCategory.id}
+                onChange={(event) => setCategoryId(Number(event.target.value))}
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="policy-picker-value">
+              Ceiling <strong>{ceilingForCategory(selectedCategory.id)}%</strong>
+            </p>
+            <button
+              className="button"
+              type="button"
+              onClick={() => {
+                setCategoryLimit(String(ceilingForCategory(selectedCategory.id)))
+                setModal('category')
+              }}
+            >
+              Edit
+            </button>
+          </div>
+        ) : null}
+      </Panel>
+
+      <Panel
+        title="Who must approve"
+        badge={
+          approvalQuery.isSuccess && approval ? (
+            <button className="button" type="button" onClick={() => setModal('approval')}>
+              Edit
+            </button>
+          ) : undefined
+        }
+      >
+        <p className="muted">
+          Sales Manager and Finance step in only when a quote goes past the ceilings above.
+        </p>
+        {approvalQuery.isLoading ? <p className="muted">Loading…</p> : null}
+        {approvalQuery.isError ? <p className="error">Could not load approval settings.</p> : null}
+        {approvalQuery.isSuccess && approval ? (
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>One product over ceiling</th>
+                <th>Whole quote over ceiling</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <span className="table-primary">Sales Manager</span>
+                </td>
+                <td>{approval.managerLineExcessPercent}%</td>
+                <td>{approval.managerQuoteExcessPercent}%</td>
+              </tr>
+              <tr>
+                <td>
+                  <span className="table-primary">Finance</span>
+                </td>
+                <td>{approval.financeLineExcessPercent}%</td>
+                <td>{approval.financeQuoteExcessPercent}%</td>
+              </tr>
+            </tbody>
+          </table>
+        ) : null}
+      </Panel>
+
+      {modal === 'standing-add' ? (
+        <Modal title="Add standing" onClose={closeModal}>
+          <form className="form" onSubmit={onCreateStanding}>
+            {error ? (
+              <p className="error field-full" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <label className="field">
+              Name
+              <input
+                className="input"
+                value={tierName}
+                onChange={(event) => setTierName(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Discount ceiling %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={tierLimit}
+                onChange={(event) => setTierLimit(event.target.value)}
+                required
+              />
+            </label>
             <div className="form-actions">
-              <button className="button" type="submit" disabled={replaceDiscountState.isLoading}>
-                {replaceDiscountState.isLoading ? 'Saving…' : 'Save discount policy'}
+              <button className="button" type="submit" disabled={createTierState.isLoading || savingDiscount}>
+                {createTierState.isLoading || savingDiscount ? 'Saving…' : 'Add standing'}
               </button>
             </div>
           </form>
-        ) : null}
-      </Panel>
+        </Modal>
+      ) : null}
 
-      <Panel title="Approval Policy">
-        <p className="muted">
-          Only Sales Manager and Finance approve quotes. Set how far over the discount ceiling a quote may go
-          before each of them is required.
-        </p>
-        {approvalQuery.isLoading ? <p className="muted">Loading approval…</p> : null}
-        {approvalQuery.isError ? <p className="error">Could not load approval policy.</p> : null}
-        {approvalQuery.isSuccess && approval ? (
+      {modal === 'standing-edit' && editStanding ? (
+        <Modal title={`Edit ${editStanding.name}`} onClose={closeModal}>
+          <form className="form" onSubmit={onSaveStanding}>
+            {error ? (
+              <p className="error field-full" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <label className="field field-full">
+              Discount ceiling %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={tierLimit}
+                onChange={(event) => setTierLimit(event.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={savingDiscount}>
+                {savingDiscount ? 'Saving…' : 'Save ceiling'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {modal === 'category' && selectedCategory ? (
+        <Modal title={`${selectedCategory.name} ceiling`} onClose={closeModal}>
+          <form className="form" onSubmit={onSaveCategory}>
+            {error ? (
+              <p className="error field-full" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <label className="field field-full">
+              Discount ceiling %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={categoryLimit}
+                onChange={(event) => setCategoryLimit(event.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={savingDiscount}>
+                {savingDiscount ? 'Saving…' : 'Save ceiling'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {modal === 'approval' && approval ? (
+        <Modal title="Who must approve" onClose={closeModal}>
           <form className="form" onSubmit={onSaveApproval} key={approval.id}>
-            <p className="muted">Sales Manager</p>
+            {error ? (
+              <p className="error field-full" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <p className="muted field-full">Sales Manager</p>
             <label className="field">
-              Needed if any product is over its discount ceiling by %
+              One product over ceiling %
               <input
                 className="input"
                 type="number"
@@ -228,7 +405,7 @@ export function PoliciesPage() {
               />
             </label>
             <label className="field">
-              Needed if extra discount on the whole quote reaches %
+              Whole quote over ceiling %
               <input
                 className="input"
                 type="number"
@@ -239,9 +416,9 @@ export function PoliciesPage() {
                 required
               />
             </label>
-            <p className="muted">Finance</p>
+            <p className="muted field-full">Finance</p>
             <label className="field">
-              Needed if any product is over its discount ceiling by %
+              One product over ceiling %
               <input
                 className="input"
                 type="number"
@@ -253,7 +430,7 @@ export function PoliciesPage() {
               />
             </label>
             <label className="field">
-              Needed if extra discount on the whole quote reaches %
+              Whole quote over ceiling %
               <input
                 className="input"
                 type="number"
@@ -266,12 +443,12 @@ export function PoliciesPage() {
             </label>
             <div className="form-actions">
               <button className="button" type="submit" disabled={replaceApprovalState.isLoading}>
-                {replaceApprovalState.isLoading ? 'Saving…' : 'Save approval policy'}
+                {replaceApprovalState.isLoading ? 'Saving…' : 'Save'}
               </button>
             </div>
           </form>
-        ) : null}
-      </Panel>
+        </Modal>
+      ) : null}
     </div>
   )
 }

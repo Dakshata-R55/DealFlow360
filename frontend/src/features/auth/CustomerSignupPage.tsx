@@ -41,18 +41,21 @@ export function CustomerSignupPage() {
   return (
     <AuthShell title="Customer sign up" lede="Create an account for requests and quotes.">
           <form className="form" onSubmit={onSubmit}>
-            <label className="field">
+            <label className="field" htmlFor="customer-signup-name">
               Name
               <input
+                id="customer-signup-name"
                 className="input"
+                autoComplete="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
               />
             </label>
-            <label className="field">
+            <label className="field" htmlFor="customer-signup-email">
               Email
               <input
+                id="customer-signup-email"
                 className="input"
                 type="email"
                 autoComplete="username"
@@ -61,9 +64,10 @@ export function CustomerSignupPage() {
                 required
               />
             </label>
-            <label className="field">
+            <label className="field" htmlFor="customer-signup-password">
               Password
               <input
+                id="customer-signup-password"
                 className="input"
                 type="password"
                 autoComplete="new-password"

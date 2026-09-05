@@ -42,19 +42,22 @@ export function SignupPage() {
   return (
     <AuthShell title="Create company" lede="Set up a seller workspace and land on the board.">
           <form className="form" onSubmit={onSubmit}>
-            <label className="field">
+            <label className="field" htmlFor="signup-company">
               Company name
               <input
+                id="signup-company"
                 className="input"
                 name="companyName"
+                autoComplete="organization"
                 value={companyName}
                 onChange={(event) => setCompanyName(event.target.value)}
                 required
               />
             </label>
-            <label className="field">
+            <label className="field" htmlFor="signup-name">
               Your name
               <input
+                id="signup-name"
                 className="input"
                 name="name"
                 autoComplete="name"
@@ -63,9 +66,10 @@ export function SignupPage() {
                 required
               />
             </label>
-            <label className="field">
+            <label className="field" htmlFor="signup-email">
               Email
               <input
+                id="signup-email"
                 className="input"
                 type="email"
                 name="email"
@@ -75,9 +79,10 @@ export function SignupPage() {
                 required
               />
             </label>
-            <label className="field">
+            <label className="field" htmlFor="signup-password">
               Password
               <input
+                id="signup-password"
                 className="input"
                 type="password"
                 name="password"

@@ -508,7 +508,7 @@ export function QuotationPanel({
             </dd>
           </div>
           <div>
-            <dt>Max line excess</dt>
+            <dt>Largest product overage</dt>
             <dd>{percent(quote.maxLineExcess)}</dd>
           </div>
           <div>
