@@ -39,7 +39,7 @@ export function CustomerSignupPage() {
   }
 
   return (
-    <AuthShell title="Customer sign up">
+    <AuthShell title="Customer sign up" lede="Create an account for requests and quotes.">
           <form className="form" onSubmit={onSubmit}>
             <label className="field">
               Name
@@ -79,7 +79,7 @@ export function CustomerSignupPage() {
               </p>
             ) : null}
             <div className="form-actions">
-              <button className="button" type="submit" disabled={isLoading}>
+              <button className="button auth-submit" type="submit" disabled={isLoading}>
                 {isLoading ? 'Creating…' : 'Create account'}
               </button>
               <Link className="link" to="/login">

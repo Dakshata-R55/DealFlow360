@@ -40,7 +40,7 @@ export function SignupPage() {
   }
 
   return (
-    <AuthShell title="Create company">
+    <AuthShell title="Create company" lede="Set up a seller workspace and land on the board.">
           <form className="form" onSubmit={onSubmit}>
             <label className="field">
               Company name
@@ -94,7 +94,7 @@ export function SignupPage() {
               </p>
             ) : null}
             <div className="form-actions">
-              <button className="button" type="submit" disabled={isLoading}>
+              <button className="button auth-submit" type="submit" disabled={isLoading}>
                 {isLoading ? 'Creating…' : 'Sign up'}
               </button>
               <Link className="link" to="/login">
