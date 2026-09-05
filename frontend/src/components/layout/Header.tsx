@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { APP_SUBTITLE, APP_TITLE } from '../../constants/app'
 import { logout } from '../../features/auth/authSlice'
+import { canAccessQuotations } from '../../features/auth/types'
 import { baseApi } from '../../stores/api/baseApi'
 import { useAppDispatch, useAppSelector } from '../../stores/hooks'
 
@@ -22,23 +23,32 @@ export function Header() {
         <p className="eyebrow">Dealflow360</p>
         <h1>{APP_TITLE}</h1>
         <p className="subtitle">{APP_SUBTITLE}</p>
-        {user?.role === 'ADMIN' ? (
-          <nav className="admin-nav" aria-label="Admin">
+        {user && user.role !== 'CUSTOMER' ? (
+          <nav className="admin-nav" aria-label="Workspace">
             <Link className="link" to="/dashboard">
               Dashboard
             </Link>
-            <Link className="link" to="/admin/catalog">
-              Catalog
-            </Link>
-            <Link className="link" to="/admin/policies">
-              Policies
-            </Link>
-            <Link className="link" to="/admin/warehouses">
-              Warehouses
-            </Link>
-            <Link className="link" to="/admin/plans">
-              Plans
-            </Link>
+            {canAccessQuotations(user.role) ? (
+              <Link className="link" to="/quotations">
+                Quotations
+              </Link>
+            ) : null}
+            {user.role === 'ADMIN' ? (
+              <>
+                <Link className="link" to="/admin/catalog">
+                  Catalog
+                </Link>
+                <Link className="link" to="/admin/policies">
+                  Policies
+                </Link>
+                <Link className="link" to="/admin/warehouses">
+                  Warehouses
+                </Link>
+                <Link className="link" to="/admin/plans">
+                  Plans
+                </Link>
+              </>
+            ) : null}
           </nav>
         ) : null}
       </div>

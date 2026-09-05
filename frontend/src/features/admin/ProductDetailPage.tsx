@@ -4,6 +4,7 @@ import { Panel } from '../../components/common/Panel'
 import {
   useCreateUpsellRuleMutation,
   useCreateVariantMutation,
+  useGetCustomerTiersQuery,
   useGetPriceListsQuery,
   useGetProductQuery,
   useGetProductsQuery,
@@ -19,6 +20,7 @@ export function ProductDetailPage() {
   const productId = Number(params.id)
   const productQuery = useGetProductQuery(productId, { skip: !Number.isFinite(productId) })
   const productsQuery = useGetProductsQuery()
+  const tiersQuery = useGetCustomerTiersQuery()
   const priceListsQuery = useGetPriceListsQuery()
   const upsellQuery = useGetUpsellRulesQuery()
   const [updateProduct, updateProductState] = useUpdateProductMutation()
@@ -111,6 +113,13 @@ export function ProductDetailPage() {
     }
   }
 
+  function onSelectPriceList(nextListId: string) {
+    setPriceListId(nextListId)
+    const list = (priceListsQuery.data ?? []).find((row) => String(row.id) === nextListId)
+    const existing = list?.items.find((item) => item.productId === productId)
+    setOverridePrice(existing ? String(existing.price) : '')
+  }
+
   async function onAddUpsell(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
@@ -138,6 +147,23 @@ export function ProductDetailPage() {
   }
 
   const pairings = (upsellQuery.data ?? []).filter((rule) => rule.triggerProductId === productId)
+  const priceLists = priceListsQuery.data ?? []
+  const tiers = tiersQuery.data ?? []
+  const overrides = priceLists.flatMap((list) => {
+    const item = list.items.find((row) => row.productId === productId)
+    if (!item) {
+      return []
+    }
+    return [{ list, item }]
+  })
+
+  function productName(id: number) {
+    return productsQuery.data?.find((row) => row.id === id)?.name ?? `Product ${id}`
+  }
+
+  function tierName(id: number) {
+    return tiers.find((tier) => tier.id === id)?.name ?? `tier ${id}`
+  }
 
   return (
     <div className="stack">
@@ -275,42 +301,72 @@ export function ProductDetailPage() {
       </Panel>
 
       <Panel title="Price list override">
-        <p className="muted">Falls back to base selling price when no override exists.</p>
-        <form className="form" onSubmit={onSaveOverride}>
-          <label className="field">
-            Price list
-            <select
-              className="input"
-              value={priceListId}
-              onChange={(event) => setPriceListId(event.target.value)}
-              required
-            >
-              <option value="">Select price list</option>
-              {(priceListsQuery.data ?? []).map((list) => (
-                <option key={list.id} value={list.id}>
-                  {list.name} ({list.currency})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            Override price
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={overridePrice}
-              onChange={(event) => setOverridePrice(event.target.value)}
-              required
-            />
-          </label>
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={upsertPriceState.isLoading}>
-              {upsertPriceState.isLoading ? 'Saving…' : 'Save override'}
-            </button>
-          </div>
-        </form>
+        <p className="muted">
+          Each customer tier has a price list (Bronze, Silver, Gold, Platinum if you added them). Override is
+          this product’s special price on that list. No row means the quote uses selling price ({product.basePrice}).
+          Extra currencies still come from{' '}
+          <Link className="link" to="/admin/catalog">
+            Catalog
+          </Link>
+          .
+        </p>
+        {priceListsQuery.isLoading ? <p className="muted">Loading price lists…</p> : null}
+        {priceLists.length === 0 ? (
+          <p className="muted">No price lists yet. Create one from a customer tier on Catalog.</p>
+        ) : null}
+        {overrides.length === 0 && priceLists.length > 0 ? (
+          <p className="muted">No override for this product yet. Every tier currently pays {product.basePrice}.</p>
+        ) : null}
+        {overrides.length > 0 ? (
+          <ul>
+            {overrides.map(({ list, item }) => (
+              <li key={list.id}>
+                {list.name}
+                <span className="muted">
+                  {' '}
+                  · {tierName(list.customerTierId)} · {list.currency} · {item.price} (selling {product.basePrice})
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {priceLists.length > 0 ? (
+          <form className="form" onSubmit={onSaveOverride}>
+            <label className="field">
+              Price list
+              <select
+                className="input"
+                value={priceListId}
+                onChange={(event) => onSelectPriceList(event.target.value)}
+                required
+              >
+                <option value="">Select price list</option>
+                {priceLists.map((list) => (
+                  <option key={list.id} value={list.id}>
+                    {list.name} · {tierName(list.customerTierId)} · {list.currency}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Override price
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={overridePrice}
+                onChange={(event) => setOverridePrice(event.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={upsertPriceState.isLoading}>
+                {upsertPriceState.isLoading ? 'Saving…' : 'Save override'}
+              </button>
+            </div>
+          </form>
+        ) : null}
       </Panel>
 
       <Panel title="Upsell pairing">
@@ -318,7 +374,7 @@ export function ProductDetailPage() {
         <ul>
           {pairings.map((rule) => (
             <li key={rule.id}>
-              suggests product {rule.suggestedProductId}
+              {productName(rule.suggestedProductId)}
               <span className="muted">
                 {' '}
                 · score {rule.score} · boost {rule.promotionBoost} · min margin {rule.minMarginPct}%

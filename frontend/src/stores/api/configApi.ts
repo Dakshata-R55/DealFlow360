@@ -265,7 +265,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isCustomerTier),
         }),
         transformResponse: unwrap(isCustomerTier, 'POST /api/customer-tiers'),
-        invalidatesTags: ['CustomerTier'],
+        invalidatesTags: ['CustomerTier', 'PriceList'],
       }),
       getPriceLists: builder.query<PriceList[], void>({
         query: () => ({

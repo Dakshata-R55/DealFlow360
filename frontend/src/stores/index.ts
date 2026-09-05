@@ -5,6 +5,7 @@ import { baseApi } from './api/baseApi'
 import './api/healthApi'
 import './api/authApi'
 import './api/configApi'
+import './api/quotationApi'
 
 export const store = configureStore({
   reducer: {

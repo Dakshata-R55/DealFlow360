@@ -108,6 +108,10 @@ export function PoliciesPage() {
       ) : null}
 
       <Panel title="Customer tiers">
+        <p className="muted">
+          Adding a tier also creates a default INR price list. Extra currencies are added on Catalog. Discount
+          limits below are a separate policy — save them after you add a tier.
+        </p>
         {tiersQuery.isLoading ? <p className="muted">Loading tiers…</p> : null}
         <ul>
           {(tiersQuery.data ?? []).map((tier) => (

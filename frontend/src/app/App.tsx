@@ -8,9 +8,12 @@ import { ProductDetailPage } from '../features/admin/ProductDetailPage'
 import { WarehousesPage } from '../features/admin/WarehousesPage'
 import { LoginPage } from '../features/auth/LoginPage'
 import { SignupPage } from '../features/auth/SignupPage'
+import { QuotationDetailPage } from '../features/quotations/QuotationDetailPage'
+import { QuotationsListPage } from '../features/quotations/QuotationsListPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { AdminRoute } from '../routes/AdminRoute'
 import { ProtectedRoute } from '../routes/ProtectedRoute'
+import { SalesWorkspaceRoute } from '../routes/SalesWorkspaceRoute'
 
 export function App() {
   return (
@@ -23,6 +26,10 @@ export function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route element={<SalesWorkspaceRoute />}>
+                <Route path="/quotations" element={<QuotationsListPage />} />
+                <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+              </Route>
               <Route element={<AdminRoute />}>
                 <Route path="/admin/catalog" element={<CatalogPage />} />
                 <Route path="/admin/products/:id" element={<ProductDetailPage />} />

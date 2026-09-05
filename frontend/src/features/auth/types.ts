@@ -36,6 +36,14 @@ export function isUserRole(value: unknown): value is UserRole {
   return typeof value === 'string' && (ROLES as string[]).includes(value)
 }
 
+export function canAccessQuotations(role: UserRole | undefined): boolean {
+  return role === 'SALES_REP' || role === 'SALES_MANAGER' || role === 'FINANCE_OPS'
+}
+
+export function canWriteQuotations(role: UserRole | undefined): boolean {
+  return role === 'SALES_REP'
+}
+
 export function isAuthUser(value: unknown): value is AuthUser {
   if (!isRecord(value)) {
     return false
