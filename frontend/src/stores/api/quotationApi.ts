@@ -3,9 +3,11 @@ import {
   isListOf,
   isQuotation,
   isRecommendation,
+  isSalesUser,
   type Customer,
   type Quotation,
   type Recommendation,
+  type SalesUser,
 } from '../../features/quotations/types'
 import { isApiResponse } from '../../types/api'
 import { baseApi } from './baseApi'
@@ -13,6 +15,7 @@ import { baseApi } from './baseApi'
 const isCustomerList = isListOf(isCustomer)
 const isQuotationList = isListOf(isQuotation)
 const isRecommendationList = isListOf(isRecommendation)
+const isSalesUserList = isListOf(isSalesUser)
 
 function unwrap<T>(isData: (value: unknown) => value is T, label: string) {
   return (payload: unknown): T => {
@@ -40,7 +43,7 @@ export type PatchQuotationLineBody = {
 
 export const quotationApi = baseApi
   .enhanceEndpoints({
-    addTagTypes: ['Customer', 'Quotation', 'QuotationList', 'Recommendation'],
+    addTagTypes: ['Customer', 'Quotation', 'QuotationList', 'Recommendation', 'SalesUser', 'QuoteRequestList', 'CustomerQuotation'],
   })
   .injectEndpoints({
     endpoints: (builder) => ({
@@ -59,6 +62,14 @@ export const quotationApi = baseApi
         }),
         transformResponse: unwrap(isQuotationList, 'GET /api/quotations'),
         providesTags: ['QuotationList'],
+      }),
+      getSalesUsers: builder.query<SalesUser[], void>({
+        query: () => ({
+          url: '/api/quotations/sales-users',
+          validateStatus: (_response, json) => isApiResponse(json, isSalesUserList),
+        }),
+        transformResponse: unwrap(isSalesUserList, 'GET /api/quotations/sales-users'),
+        providesTags: ['SalesUser'],
       }),
       getQuotation: builder.query<Quotation, number>({
         query: (id) => ({
@@ -173,12 +184,85 @@ export const quotationApi = baseApi
           { type: 'Recommendation', id },
         ],
       }),
+      assignQuotation: builder.mutation<Quotation, { quotationId: number; salesRepId: number }>({
+        query: ({ quotationId, salesRepId }) => ({
+          url: `/api/quotations/${quotationId}/assignee`,
+          method: 'PATCH',
+          body: { salesRepId },
+          validateStatus: (_response, json) => isApiResponse(json, isQuotation),
+        }),
+        transformResponse: unwrap(isQuotation, 'PATCH /api/quotations/{id}/assignee'),
+        invalidatesTags: (_result, _error, { quotationId }) => [
+          'QuotationList',
+          { type: 'Quotation', id: quotationId },
+        ],
+      }),
+      reopenQuotation: builder.mutation<Quotation, number>({
+        query: (id) => ({
+          url: `/api/quotations/${id}/reopen`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isQuotation),
+        }),
+        transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/reopen'),
+        invalidatesTags: (_result, _error, id) => [
+          'QuotationList',
+          { type: 'Quotation', id },
+          { type: 'Recommendation', id },
+        ],
+      }),
+      negotiateQuotation: builder.mutation<Quotation, number>({
+        query: (id) => ({
+          url: `/api/quotations/${id}/negotiate`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isQuotation),
+        }),
+        transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/negotiate'),
+        invalidatesTags: (_result, _error, id) => ['QuotationList', { type: 'Quotation', id }],
+      }),
+      approveQuotation: builder.mutation<Quotation, number>({
+        query: (id) => ({
+          url: `/api/quotations/${id}/approve`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isQuotation),
+        }),
+        transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/approve'),
+        invalidatesTags: (_result, _error, id) => ['QuotationList', { type: 'Quotation', id }, 'QuoteRequestList', 'CustomerQuotation'],
+      }),
+      returnQuotationToQueue: builder.mutation<Quotation, number>({
+        query: (id) => ({
+          url: `/api/quotations/${id}/return-to-queue`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isQuotation),
+        }),
+        transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/return-to-queue'),
+        invalidatesTags: (_result, _error, id) => [
+          'QuotationList',
+          { type: 'Quotation', id },
+          'QuoteRequestList',
+          'CustomerQuotation',
+        ],
+      }),
+      returnQuotationToPending: builder.mutation<Quotation, number>({
+        query: (id) => ({
+          url: `/api/quotations/${id}/return-to-pending`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isQuotation),
+        }),
+        transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/return-to-pending'),
+        invalidatesTags: (_result, _error, id) => [
+          'QuotationList',
+          { type: 'Quotation', id },
+          'QuoteRequestList',
+          'CustomerQuotation',
+        ],
+      }),
     }),
   })
 
 export const {
   useGetCustomersQuery,
   useGetQuotationsQuery,
+  useGetSalesUsersQuery,
   useGetQuotationQuery,
   useCreateQuotationMutation,
   useSaveQuotationDraftMutation,
@@ -189,4 +273,10 @@ export const {
   useGetRecommendationsQuery,
   useDismissRecommendationMutation,
   useSubmitQuotationMutation,
+  useAssignQuotationMutation,
+  useReopenQuotationMutation,
+  useNegotiateQuotationMutation,
+  useApproveQuotationMutation,
+  useReturnQuotationToQueueMutation,
+  useReturnQuotationToPendingMutation,
 } = quotationApi

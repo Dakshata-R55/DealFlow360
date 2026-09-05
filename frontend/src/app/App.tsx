@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { AppProviders } from './providers'
 import { AppLayout } from '../components/layout/AppLayout'
 import { CatalogPage } from '../features/admin/CatalogPage'
@@ -12,7 +13,9 @@ import { SignupPage } from '../features/auth/SignupPage'
 import { CustomerHomePage } from '../features/requests/CustomerHomePage'
 import { CompaniesPage } from '../features/requests/CompaniesPage'
 import { CompanyStorefrontPage } from '../features/requests/CompanyStorefrontPage'
-import { CustomerPlaceholderPage } from '../features/requests/CustomerPlaceholderPage'
+import { CustomerOrdersPage } from '../features/requests/CustomerOrdersPage'
+import { CustomerQuotationDetailPage } from '../features/requests/CustomerQuotationDetailPage'
+import { CustomerQuotationsPage } from '../features/requests/CustomerQuotationsPage'
 import { CustomerRequestDetailPage } from '../features/requests/CustomerRequestDetailPage'
 import { MyRequestsPage } from '../features/requests/MyRequestsPage'
 import { SellerRequestDetailPage } from '../features/requests/SellerRequestDetailPage'
@@ -29,6 +32,7 @@ import { SalesWorkspaceRoute } from '../routes/SalesWorkspaceRoute'
 export function App() {
   return (
     <AppProviders>
+      <Toaster position="top-right" richColors closeButton />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -44,8 +48,9 @@ export function App() {
                 <Route path="/customer/companies/:companyId" element={<CompanyStorefrontPage />} />
                 <Route path="/customer/requests" element={<MyRequestsPage />} />
                 <Route path="/customer/requests/:id" element={<CustomerRequestDetailPage />} />
-                <Route path="/customer/quotations" element={<CustomerPlaceholderPage title="Quotations" />} />
-                <Route path="/customer/orders" element={<CustomerPlaceholderPage title="Orders and Billing" />} />
+                <Route path="/customer/quotations" element={<CustomerQuotationsPage />} />
+                <Route path="/customer/quotations/:id" element={<CustomerQuotationDetailPage />} />
+                <Route path="/customer/orders" element={<CustomerOrdersPage />} />
               </Route>
               <Route element={<SalesWorkspaceRoute />}>
                 <Route path="/quotations" element={<QuotationsListPage />} />

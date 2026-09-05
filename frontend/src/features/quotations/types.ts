@@ -56,6 +56,7 @@ export type Quotation = {
   customerTierId: number
   customerTierName: string
   salesRepId: number
+  salesRepName: string
   priceListId: number
   priceListName: string
   status: QuotationStatus
@@ -72,10 +73,11 @@ export type Quotation = {
   createdAt: string
   updatedAt: string
   submittedAt: string | null
+  managerApprovedAt: string | null
+  financeApprovedAt: string | null
   lines: QuotationLine[]
   sourceRequestNumber: string | null
   customerExpectedDiscountPercent: number | null
-  customerTargetBudget: number | null
 }
 
 export type Recommendation = {
@@ -166,6 +168,7 @@ export function isQuotation(value: unknown): value is Quotation {
     isNumber(value.customerTierId) &&
     typeof value.customerTierName === 'string' &&
     isNumber(value.salesRepId) &&
+    typeof value.salesRepName === 'string' &&
     isNumber(value.priceListId) &&
     typeof value.priceListName === 'string' &&
     typeof value.status === 'string' &&
@@ -184,11 +187,12 @@ export function isQuotation(value: unknown): value is Quotation {
     isIso(value.createdAt) &&
     isIso(value.updatedAt) &&
     (value.submittedAt === null || isIso(value.submittedAt)) &&
+    (value.managerApprovedAt === null || isIso(value.managerApprovedAt)) &&
+    (value.financeApprovedAt === null || isIso(value.financeApprovedAt)) &&
     Array.isArray(value.lines) &&
     value.lines.every(isQuotationLine) &&
     (value.sourceRequestNumber === null || typeof value.sourceRequestNumber === 'string') &&
-    (value.customerExpectedDiscountPercent === null || isNumber(value.customerExpectedDiscountPercent)) &&
-    (value.customerTargetBudget === null || isNumber(value.customerTargetBudget))
+    (value.customerExpectedDiscountPercent === null || isNumber(value.customerExpectedDiscountPercent))
   )
 }
 
@@ -236,4 +240,156 @@ export function percent(value: number): string {
 
 export function money(value: number): string {
   return value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+export type SalesUser = {
+  id: number
+  name: string
+  email: string
+  role: 'SALES_REP' | 'SALES_MANAGER' | 'FINANCE_OPS'
+}
+
+const SALES_ROLES = ['SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS'] as const
+
+export function isSalesUser(value: unknown): value is SalesUser {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    isNumber(value.id) &&
+    typeof value.name === 'string' &&
+    typeof value.email === 'string' &&
+    typeof value.role === 'string' &&
+    (SALES_ROLES as readonly string[]).includes(value.role)
+  )
+}
+
+export function statusLabel(status: QuotationStatus): string {
+  const column = PIPELINE_COLUMNS.find((item) => item.status === status)
+  return column ? column.label : status.replaceAll('_', ' ')
+}
+
+export type QuoteStatusAction =
+  | 'submit'
+  | 'reopen'
+  | 'negotiate'
+  | 'approve'
+  | 'returnToQueue'
+  | 'returnToPending'
+
+export type StatusOption = {
+  action: QuoteStatusAction
+  label: string
+}
+
+export function legalStatusOptions(args: {
+  status: QuotationStatus
+  canSubmit: boolean
+  role: string | undefined
+  riskLevel: RiskLevel
+  managerApprovedAt: string | null
+  hasSourceRequest?: boolean
+}): StatusOption[] {
+  const { status, canSubmit, role, riskLevel, managerApprovedAt, hasSourceRequest } = args
+  const isApprover = role === 'SALES_MANAGER' || role === 'FINANCE_OPS'
+  if (status === 'DRAFT') {
+    const options: StatusOption[] = []
+    if (canSubmit) {
+      options.push({ action: 'submit', label: 'Submit for approval' })
+      if (hasSourceRequest) {
+        options.push({ action: 'returnToQueue', label: 'To do' })
+      }
+    }
+    return options
+  }
+  if (status === 'PENDING_APPROVAL') {
+    const options: StatusOption[] = []
+    if (canSubmit) {
+      options.push({ action: 'reopen', label: 'Draft' })
+    }
+    if (isApprover) {
+      options.push({ action: 'negotiate', label: 'Negotiation' })
+    }
+    if (role === 'SALES_MANAGER' && !managerApprovedAt) {
+      options.push({ action: 'approve', label: riskLevel === 'HIGH' ? 'Stamp for Finance' : 'Approve' })
+    }
+    if (role === 'FINANCE_OPS' && riskLevel === 'HIGH' && managerApprovedAt) {
+      options.push({ action: 'approve', label: 'Approve' })
+    }
+    return options
+  }
+  if (status === 'APPROVED') {
+    const options: StatusOption[] = []
+    if (canSubmit) {
+      options.push({ action: 'reopen', label: 'Draft' })
+      options.push({ action: 'returnToPending', label: 'Pending Approval' })
+    }
+    if (isApprover) {
+      options.push({ action: 'negotiate', label: 'Negotiation' })
+    }
+    return options
+  }
+  if (status === 'NEGOTIATION') {
+    const options: StatusOption[] = []
+    if (canSubmit) {
+      options.push({ action: 'reopen', label: 'Draft' })
+      options.push({ action: 'returnToPending', label: 'Pending Approval' })
+    }
+    if (isApprover) {
+      options.push({ action: 'approve', label: 'Approve' })
+    }
+    return options
+  }
+  return []
+}
+
+export type SellerBoardColumn = 'TODO' | QuotationStatus
+
+export function quoteDropAction(
+  fromStatus: QuotationStatus,
+  toColumn: SellerBoardColumn,
+  options: StatusOption[],
+): QuoteStatusAction | 'noop' | null {
+  if (toColumn === fromStatus) {
+    return 'noop'
+  }
+  if (toColumn === 'TODO') {
+    return options.some((item) => item.action === 'returnToQueue') ? 'returnToQueue' : null
+  }
+  if (toColumn === 'CONFIRMED' || toColumn === 'REJECTED' || toColumn === 'CANCELLED') {
+    return null
+  }
+  const action: QuoteStatusAction | null =
+    toColumn === 'DRAFT'
+      ? 'reopen'
+      : toColumn === 'PENDING_APPROVAL'
+        ? fromStatus === 'DRAFT'
+          ? 'submit'
+          : 'returnToPending'
+        : toColumn === 'NEGOTIATION'
+          ? 'negotiate'
+          : toColumn === 'APPROVED'
+            ? 'approve'
+            : null
+  if (!action) {
+    return null
+  }
+  const option = options.find((item) => item.action === action)
+  if (!option) {
+    return null
+  }
+  if (action === 'approve' && option.label !== 'Approve') {
+    return null
+  }
+  return action
+}
+
+export function requestDropAction(toColumn: SellerBoardColumn, canConvert: boolean): 'convert' | 'noop' | null {
+  if (toColumn === 'TODO') {
+    return 'noop'
+  }
+  if (toColumn === 'DRAFT' && canConvert) {
+    return 'convert'
+  }
+  return null
 }

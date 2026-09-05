@@ -1,7 +1,8 @@
-import { useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
+import { notifyError, notifyMoved } from '../../components/common/notify'
 import { Panel } from '../../components/common/Panel'
-import { canWriteQuotations } from '../../features/auth/types'
+import { StatusBadge, toneForTicket } from '../../components/ui/StatusBadge'
+import { canClaimTodo } from '../../features/auth/types'
 import {
   useConvertRequestToQuotationMutation,
   useGetSellerRequestQuery,
@@ -9,6 +10,7 @@ import {
 import { useAppSelector } from '../../stores/hooks'
 import { apiErrorMessage } from '../../types/api'
 import { percentLabel, rupee } from './types'
+import { statusLabel } from '../quotations/types'
 
 export function SellerRequestDetailPage() {
   const { id } = useParams()
@@ -25,16 +27,15 @@ export function SellerRequestPanel({
   const user = useAppSelector((state) => state.auth.user)
   const query = useGetSellerRequestQuery(requestId, { skip: !Number.isFinite(requestId) })
   const [convert, convertState] = useConvertRequestToQuotationMutation()
-  const [error, setError] = useState<string | null>(null)
-  const canConvert = canWriteQuotations(user?.role)
+  const canConvert = canClaimTodo(user?.role)
 
   async function onConvert() {
-    setError(null)
     try {
       const quotation = await convert(requestId).unwrap()
+      notifyMoved('Draft')
       onOpenQuotation(quotation.id)
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not create quotation'))
+      notifyError(apiErrorMessage(err, 'Could not create quotation'))
     }
   }
 
@@ -59,7 +60,20 @@ export function SellerRequestPanel({
           </div>
           <div>
             <dt>Status</dt>
-            <dd>{request.statusLabel}</dd>
+            <dd>
+              <StatusBadge
+                label={request.quotationStatus ? statusLabel(request.quotationStatus) : 'To do'}
+                tone={toneForTicket(request.status, request.quotationStatus)}
+              />
+            </dd>
+          </div>
+          <div>
+            <dt>Assignee</dt>
+            <dd>
+              {request.quotationId
+                ? 'Claimed on the quotation'
+                : 'Unassigned — salesperson or manager can claim'}
+            </dd>
           </div>
           <div>
             <dt>Requested delivery</dt>
@@ -76,10 +90,6 @@ export function SellerRequestPanel({
           <div>
             <dt>Indicative total</dt>
             <dd>{rupee(request.indicativeTotal)}</dd>
-          </div>
-          <div>
-            <dt>Target budget</dt>
-            <dd>{request.targetBudget == null ? '—' : rupee(request.targetBudget)}</dd>
           </div>
           <div>
             <dt>Overall expected discount</dt>
@@ -113,16 +123,16 @@ export function SellerRequestPanel({
             </li>
           ))}
         </ul>
-        {error ? (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {canConvert &&
-        (request.status === 'SUBMITTED' || request.status === 'UNDER_REVIEW' || request.status === 'QUOTED') ? (
+        {request.quotationId ? (
+          <div className="form-actions">
+            <button className="button" type="button" onClick={() => onOpenQuotation(request.quotationId as number)}>
+              Open quotation
+            </button>
+          </div>
+        ) : canConvert && (request.status === 'SUBMITTED' || request.status === 'UNDER_REVIEW') ? (
           <div className="form-actions">
             <button className="button" type="button" disabled={convertState.isLoading} onClick={() => void onConvert()}>
-              {request.quotationId ? 'Open quotation' : convertState.isLoading ? 'Creating…' : 'Move to Draft'}
+              {convertState.isLoading ? 'Creating…' : 'Move to Draft (claim)'}
             </button>
           </div>
         ) : null}
