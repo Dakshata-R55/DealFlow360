@@ -1,0 +1,143 @@
+:root {
+  --text: #4b5563;
+  --text-h: #111827;
+  --bg: #f8f7f4;
+  --panel: #ffffff;
+  --border: #e5e7eb;
+  --ok: #047857;
+  --ok-bg: #ecfdf5;
+  --err: #b91c1c;
+  --err-bg: #fef2f2;
+  --load: #1d4ed8;
+  --load-bg: #eff6ff;
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  font: 16px/1.5 var(--sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+.shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+.header h1 {
+  margin: 0.15rem 0 0.35rem;
+  color: var(--text-h);
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 40rem;
+}
+
+.main {
+  margin-top: 1.75rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.35rem 1.5rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.75rem;
+  color: var(--text-h);
+  font-size: 1.05rem;
+}
+
+.muted {
+  color: #6b7280;
+}
+
+.error {
+  color: var(--err);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.badge-loading {
+  color: var(--load);
+  background: var(--load-bg);
+}
+
+.badge-ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.badge-error {
+  color: var(--err);
+  background: var(--err-bg);
+}
+
+.facts {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 0 1rem;
+}
+
+.facts div {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.5rem;
+}
+
+.facts dt {
+  color: #6b7280;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--text-h);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: #111827;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: #1f2937;
+}

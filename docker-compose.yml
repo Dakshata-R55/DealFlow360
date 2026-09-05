@@ -1,0 +1,63 @@
+# Dealflow360 — MySQL 8 (host 3307), API 18080, optional UI profile on 18081
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: dealflow360-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: dealflow360
+      MYSQL_USER: dealflow
+      MYSQL_PASSWORD: dealflow360
+      MYSQL_ROOT_PASSWORD: dealflow360_root
+    ports:
+      - "3307:3306"
+    volumes:
+      - dealflow360_mysql:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 25s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dealflow360-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: dealflow360
+      MYSQL_USER: dealflow
+      MYSQL_PASSWORD: dealflow360
+      SERVER_PORT: "18080"
+    ports:
+      - "18080:18080"
+
+  frontend:
+    profiles: ["ui"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    container_name: dealflow360-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      DOCKER: "1"
+    ports:
+      - "18081:5178"
+
+volumes:
+  dealflow360_mysql:
