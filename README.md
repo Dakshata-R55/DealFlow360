@@ -28,7 +28,7 @@ HTTP 200 when `success` is true; HTTP 503 when MySQL is down. Errors use the sam
 
 | Service | Local | Docker host mapping |
 | --- | --- | --- |
-| Frontend (Vite) | `5178` | `18081` → preview `:5178` (Compose profile `ui`) |
+| Frontend (Vite) | `5178` | `18081` → preview `:5178` |
 | Backend | `18080` | `18080` |
 | MySQL | `3307` | `3307` → `:3306` |
 
@@ -94,11 +94,11 @@ curl -sS http://127.0.0.1:18080/api/health
 Full stack including Vite preview frontend:
 
 ```bash
-docker compose --profile ui up -d --build
+docker compose up -d --build
 ```
 
 - API: `http://127.0.0.1:18080/api/health`
-- UI (profile `ui`): `http://127.0.0.1:18081`
+- UI: `http://127.0.0.1:18081`
 - MySQL: `127.0.0.1:3307`
 
 If `docker` is not installed or the daemon is down, Compose files still apply; run MySQL elsewhere on `3307` or accept `database: down` until a server is available.

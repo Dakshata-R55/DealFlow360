@@ -73,12 +73,10 @@ export type DiscountPolicy = {
 
 export type ApprovalPolicy = {
   id: number
-  riskLevel: RiskLevel
-  minScore: number
-  maxScore: number
-  requiresManager: boolean
-  requiresFinance: boolean
-  hardLineExcessThreshold: number
+  managerLineExcessPercent: number
+  financeLineExcessPercent: number
+  managerQuoteExcessPercent: number
+  financeQuoteExcessPercent: number
 }
 
 export type Warehouse = {
@@ -236,12 +234,10 @@ export function isApprovalPolicy(value: unknown): value is ApprovalPolicy {
   }
   return (
     isNumber(value.id) &&
-    (value.riskLevel === 'NONE' || value.riskLevel === 'MEDIUM' || value.riskLevel === 'HIGH') &&
-    isNumber(value.minScore) &&
-    isNumber(value.maxScore) &&
-    typeof value.requiresManager === 'boolean' &&
-    typeof value.requiresFinance === 'boolean' &&
-    isNumber(value.hardLineExcessThreshold)
+    isNumber(value.managerLineExcessPercent) &&
+    isNumber(value.financeLineExcessPercent) &&
+    isNumber(value.managerQuoteExcessPercent) &&
+    isNumber(value.financeQuoteExcessPercent)
   )
 }
 

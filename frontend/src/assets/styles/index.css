@@ -35,7 +35,7 @@ body {
 }
 
 .shell.wide {
-  max-width: 1100px;
+  max-width: 1480px;
 }
 
 .header {
@@ -251,7 +251,7 @@ button.link {
 
 .kanban {
   display: grid;
-  grid-template-columns: repeat(5, minmax(11rem, 1fr));
+  grid-template-columns: repeat(6, minmax(12rem, 1fr));
   gap: 0.75rem;
   margin-top: 1rem;
   overflow-x: auto;
@@ -273,6 +273,7 @@ button.link {
 .quote-card {
   display: grid;
   gap: 0.15rem;
+  width: 100%;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -280,10 +281,17 @@ button.link {
   margin-bottom: 0.55rem;
   text-decoration: none;
   color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
 }
 
 .quote-card:hover {
   border-color: #cbd5e1;
+}
+
+.quote-card-selected {
+  border-color: var(--load);
 }
 
 .quote-card-status {
@@ -317,6 +325,26 @@ button.link {
   color: var(--text-h);
 }
 
+.request-totals {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.85rem 0 1rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 0.25rem 0 1rem;
+}
+
+.request-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text-h);
+}
+
+.request-totals .indicative {
+  font-weight: 600;
+}
+
 .quote-line-over {
   background: var(--err-bg);
   margin: 0 -1.35rem;
@@ -340,6 +368,47 @@ button.link {
 .ok-text {
   color: var(--ok);
   font-weight: 600;
+}
+
+.expected-default {
+  margin: 0.35rem 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.expected-independent {
+  margin: 0.35rem 0 0;
+  color: var(--text-h);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+textarea.input {
+  min-height: 5rem;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(17 24 39 / 0.35);
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer {
+  width: min(42rem, 100%);
+  height: 100%;
+  overflow: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 1rem 1.25rem 2rem;
+}
+
+.drawer-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
 }
 
 .recs {

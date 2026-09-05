@@ -1,4 +1,4 @@
-import { isAuthSession, isAuthUser, type AuthSession, type AuthUser, type LoginRequest, type SignupRequest } from '../../features/auth/types'
+import { isAuthSession, isAuthUser, type AuthSession, type AuthUser, type CustomerSignupRequest, type LoginRequest, type SignupRequest } from '../../features/auth/types'
 import { isApiResponse } from '../../types/api'
 import { baseApi } from './baseApi'
 
@@ -32,6 +32,20 @@ export const authApi = baseApi.injectEndpoints({
         return payload.data
       },
     }),
+    signupCustomer: builder.mutation<AuthSession, CustomerSignupRequest>({
+      query: (body) => ({
+        url: '/api/auth/signup-customer',
+        method: 'POST',
+        body,
+        validateStatus: (_response, json) => isApiResponse(json, isAuthSession),
+      }),
+      transformResponse: (payload: unknown) => {
+        if (!isApiResponse(payload, isAuthSession)) {
+          throw new Error('Customer signup returned an unexpected payload')
+        }
+        return payload.data
+      },
+    }),
     getCurrentUser: builder.query<AuthUser, void>({
       query: () => ({
         url: '/api/auth/me',
@@ -47,4 +61,4 @@ export const authApi = baseApi.injectEndpoints({
   }),
 })
 
-export const { useLoginMutation, useSignupMutation, useGetCurrentUserQuery } = authApi
+export const { useLoginMutation, useSignupMutation, useSignupCustomerMutation, useGetCurrentUserQuery } = authApi

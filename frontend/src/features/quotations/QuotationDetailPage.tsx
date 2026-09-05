@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import { Panel } from '../../components/common/Panel'
 import { useGetProductsQuery } from '../../stores/api/configApi'
 import {
@@ -14,11 +14,14 @@ import {
 } from '../../stores/api/quotationApi'
 import { useAppSelector } from '../../stores/hooks'
 import { apiErrorMessage } from '../../types/api'
-import { money, routeLabel, type QuotationLine } from './types'
+import { money, percent, routeLabel, type QuotationLine } from './types'
 
 export function QuotationDetailPage() {
   const { id } = useParams()
-  const quotationId = Number(id)
+  return <Navigate to={id ? `/quotations?quote=${id}` : '/quotations'} replace />
+}
+
+export function QuotationPanel({ quotationId }: { quotationId: number }) {
   const user = useAppSelector((state) => state.auth.user)
   const quoteQuery = useGetQuotationQuery(quotationId, { skip: !Number.isFinite(quotationId) })
   const recsQuery = useGetRecommendationsQuery(quotationId, { skip: !Number.isFinite(quotationId) })
@@ -171,11 +174,6 @@ export function QuotationDetailPage() {
 
   return (
     <div className="stack">
-      <p>
-        <Link className="link" to="/quotations">
-          ← Quotations
-        </Link>
-      </p>
       <Panel title={`${quote.quoteNumber} · ${quote.status.replaceAll('_', ' ')}`}>
         <dl className="facts">
           <div>
@@ -190,6 +188,24 @@ export function QuotationDetailPage() {
             <dt>Price list</dt>
             <dd>{quote.priceListName}</dd>
           </div>
+          {quote.sourceRequestNumber ? (
+            <div>
+              <dt>From request</dt>
+              <dd>{quote.sourceRequestNumber}</dd>
+            </div>
+          ) : null}
+          {quote.customerExpectedDiscountPercent != null ? (
+            <div>
+              <dt>Overall expected discount</dt>
+              <dd>{percent(quote.customerExpectedDiscountPercent)}</dd>
+            </div>
+          ) : null}
+          {quote.customerTargetBudget != null ? (
+            <div>
+              <dt>Target budget</dt>
+              <dd>₹{money(quote.customerTargetBudget)}</dd>
+            </div>
+          ) : null}
         </dl>
         {error ? (
           <p className="error" role="alert">
@@ -255,6 +271,17 @@ export function QuotationDetailPage() {
                   <span className="ok-text">✓</span>
                 )}
               </p>
+              {line.customerExpectedDiscountPercent != null ? (
+                line.customerExpectedIsDefault ? (
+                  <p className="expected-default">
+                    By default {percent(line.customerExpectedDiscountPercent)} from the customer request
+                  </p>
+                ) : (
+                  <p className="expected-independent">
+                    Independent expected {percent(line.customerExpectedDiscountPercent)}
+                  </p>
+                )
+              ) : null}
               <p>
                 Line total ₹{money(line.lineTotal)} · Margin ₹{money(line.marginAmount)} (
                 {line.marginPercent}%)
@@ -327,6 +354,12 @@ export function QuotationDetailPage() {
             <dt>Discount</dt>
             <dd>₹{money(quote.discountAmount)}</dd>
           </div>
+          {quote.customerExpectedDiscountPercent != null ? (
+            <div>
+              <dt>Customer overall expected</dt>
+              <dd>{percent(quote.customerExpectedDiscountPercent)}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Total</dt>
             <dd>₹{money(quote.totalAmount)}</dd>
@@ -338,10 +371,12 @@ export function QuotationDetailPage() {
             </dd>
           </div>
           <div>
-            <dt>Risk</dt>
-            <dd>
-              {quote.riskLevel} ({quote.riskScore})
-            </dd>
+            <dt>Max line excess</dt>
+            <dd>{percent(quote.maxLineExcess)}</dd>
+          </div>
+          <div>
+            <dt>Quote-wide excess</dt>
+            <dd>{percent(quote.riskScore)} of catalog</dd>
           </div>
           <div>
             <dt>Likely approval</dt>

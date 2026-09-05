@@ -6,6 +6,8 @@ import './api/healthApi'
 import './api/authApi'
 import './api/configApi'
 import './api/quotationApi'
+import './api/marketplaceApi'
+import './api/quoteRequestApi'
 
 export const store = configureStore({
   reducer: {

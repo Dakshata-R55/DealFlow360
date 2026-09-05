@@ -1,25 +1,21 @@
-import { Link } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { Panel } from '../components/common/Panel'
-import { canAccessQuotations } from '../features/auth/types'
+import { canAccessQuotations, isCustomerUser } from '../features/auth/types'
 import { HomePage } from './HomePage'
 import { useAppSelector } from '../stores/hooks'
 
 export function DashboardPage() {
   const user = useAppSelector((state) => state.auth.user)
-  const showQuotations = canAccessQuotations(user?.role)
+
+  if (isCustomerUser(user?.role)) {
+    return <Navigate to="/customer" replace />
+  }
+  if (canAccessQuotations(user?.role)) {
+    return <Navigate to="/quotations" replace />
+  }
 
   return (
     <div className="stack">
-      {showQuotations ? (
-        <Panel title="Sales workspace">
-          <p className="muted">Create and edit quotations for your customers.</p>
-          <p>
-            <Link className="link" to="/quotations">
-              Open quotations
-            </Link>
-          </p>
-        </Panel>
-      ) : null}
       <Panel title="Signed in">
         {user ? (
           <dl className="facts">
@@ -41,11 +37,11 @@ export function DashboardPage() {
             </div>
             <div>
               <dt>Company ID</dt>
-              <dd>{user.companyId}</dd>
+              <dd>{user.companyId ?? '—'}</dd>
             </div>
             <div>
               <dt>Company</dt>
-              <dd>{user.companyName}</dd>
+              <dd>{user.companyName ?? '—'}</dd>
             </div>
           </dl>
         ) : (

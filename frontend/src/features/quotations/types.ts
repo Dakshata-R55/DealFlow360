@@ -44,6 +44,8 @@ export type QuotationLine = {
   marginAmount: number
   marginPercent: number
   billingType: BillingType
+  customerExpectedDiscountPercent: number | null
+  customerExpectedIsDefault: boolean
 }
 
 export type Quotation = {
@@ -65,11 +67,15 @@ export type Quotation = {
   marginPercent: number
   riskScore: number
   riskLevel: RiskLevel
+  maxLineExcess: number
   likelyRoute: LikelyRoute
   createdAt: string
   updatedAt: string
   submittedAt: string | null
   lines: QuotationLine[]
+  sourceRequestNumber: string | null
+  customerExpectedDiscountPercent: number | null
+  customerTargetBudget: number | null
 }
 
 export type Recommendation = {
@@ -142,7 +148,9 @@ function isQuotationLine(value: unknown): value is QuotationLine {
     isNumber(value.lineTotal) &&
     isNumber(value.marginAmount) &&
     isNumber(value.marginPercent) &&
-    (value.billingType === 'ONE_TIME' || value.billingType === 'RECURRING')
+    (value.billingType === 'ONE_TIME' || value.billingType === 'RECURRING') &&
+    (value.customerExpectedDiscountPercent === null || isNumber(value.customerExpectedDiscountPercent)) &&
+    typeof value.customerExpectedIsDefault === 'boolean'
   )
 }
 
@@ -171,12 +179,16 @@ export function isQuotation(value: unknown): value is Quotation {
     isNumber(value.riskScore) &&
     typeof value.riskLevel === 'string' &&
     RISK_LEVELS.includes(value.riskLevel as RiskLevel) &&
+    isNumber(value.maxLineExcess) &&
     isLikelyRoute(value.likelyRoute) &&
     isIso(value.createdAt) &&
     isIso(value.updatedAt) &&
     (value.submittedAt === null || isIso(value.submittedAt)) &&
     Array.isArray(value.lines) &&
-    value.lines.every(isQuotationLine)
+    value.lines.every(isQuotationLine) &&
+    (value.sourceRequestNumber === null || typeof value.sourceRequestNumber === 'string') &&
+    (value.customerExpectedDiscountPercent === null || isNumber(value.customerExpectedDiscountPercent)) &&
+    (value.customerTargetBudget === null || isNumber(value.customerTargetBudget))
   )
 }
 
@@ -216,6 +228,10 @@ export function routeLabel(route: LikelyRoute): string {
     return 'Finance'
   }
   return 'None'
+}
+
+export function percent(value: number): string {
+  return `${Number(value.toFixed(2))}%`
 }
 
 export function money(value: number): string {

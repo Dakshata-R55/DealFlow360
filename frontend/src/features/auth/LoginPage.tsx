@@ -5,18 +5,27 @@ import { useAppDispatch, useAppSelector } from '../../stores/hooks'
 import { apiErrorMessage } from '../../types/api'
 import { APP_SUBTITLE, APP_TITLE } from '../../constants/app'
 import { setCredentials } from './authSlice'
+import { homePath } from './types'
 
 export function LoginPage() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
+  const user = useAppSelector((state) => state.auth.user)
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
+  const [mode, setMode] = useState<'seller' | 'customer'>('seller')
   const [email, setEmail] = useState('sales@acme.demo')
   const [password, setPassword] = useState('')
   const [login, { isLoading }] = useLoginMutation()
   const [error, setError] = useState<string | null>(null)
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={homePath(user?.role)} replace />
+  }
+
+  function switchMode(next: 'seller' | 'customer') {
+    setMode(next)
+    setEmail(next === 'customer' ? 'customer@example.com' : 'sales@acme.demo')
+    setError(null)
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -25,7 +34,7 @@ export function LoginPage() {
     try {
       const session = await login({ email, password }).unwrap()
       dispatch(setCredentials({ user: session.user, accessToken: session.accessToken }))
-      navigate('/dashboard', { replace: true })
+      navigate(homePath(session.user.role), { replace: true })
     } catch (err) {
       setError(apiErrorMessage(err, 'Login failed'))
     }
@@ -43,6 +52,15 @@ export function LoginPage() {
       <main className="main">
         <section className="panel">
           <h2>Log in</h2>
+          <p className="muted">
+            <button className="link" type="button" onClick={() => switchMode('seller')}>
+              Seller
+            </button>
+            {' · '}
+            <button className="link" type="button" onClick={() => switchMode('customer')}>
+              Customer
+            </button>
+          </p>
           <form className="form" onSubmit={onSubmit}>
             <label className="field">
               Email
@@ -77,9 +95,15 @@ export function LoginPage() {
               <button className="button" type="submit" disabled={isLoading}>
                 {isLoading ? 'Signing in…' : 'Log in'}
               </button>
-              <Link className="link" to="/signup">
-                Create a company
-              </Link>
+              {mode === 'customer' ? (
+                <Link className="link" to="/signup/customer">
+                  Create a customer account
+                </Link>
+              ) : (
+                <Link className="link" to="/signup">
+                  Create a company
+                </Link>
+              )}
             </div>
           </form>
         </section>

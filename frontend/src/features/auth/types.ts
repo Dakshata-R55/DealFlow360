@@ -7,8 +7,8 @@ export type AuthUser = {
   name: string
   email: string
   role: UserRole
-  companyId: number
-  companyName: string
+  companyId: number | null
+  companyName: string | null
 }
 
 export type AuthSession = {
@@ -30,6 +30,12 @@ export type SignupRequest = {
   password: string
 }
 
+export type CustomerSignupRequest = {
+  name: string
+  email: string
+  password: string
+}
+
 const ROLES: UserRole[] = ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS', 'CUSTOMER']
 
 export function isUserRole(value: unknown): value is UserRole {
@@ -44,6 +50,20 @@ export function canWriteQuotations(role: UserRole | undefined): boolean {
   return role === 'SALES_REP'
 }
 
+export function isCustomerUser(role: UserRole | undefined): boolean {
+  return role === 'CUSTOMER'
+}
+
+export function homePath(role: UserRole | undefined): string {
+  if (isCustomerUser(role)) {
+    return '/customer'
+  }
+  if (canAccessQuotations(role)) {
+    return '/quotations'
+  }
+  return '/dashboard'
+}
+
 export function isAuthUser(value: unknown): value is AuthUser {
   if (!isRecord(value)) {
     return false
@@ -53,8 +73,8 @@ export function isAuthUser(value: unknown): value is AuthUser {
     typeof value.name === 'string' &&
     typeof value.email === 'string' &&
     isUserRole(value.role) &&
-    typeof value.companyId === 'number' &&
-    typeof value.companyName === 'string'
+    (value.companyId === null || typeof value.companyId === 'number') &&
+    (value.companyName === null || typeof value.companyName === 'string')
   )
 }
 

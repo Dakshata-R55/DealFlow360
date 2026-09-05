@@ -24,7 +24,6 @@ import {
   type PriceListItem,
   type Product,
   type ProductVariant,
-  type RiskLevel,
   type SubscriptionPlan,
   type UpsellRule,
   type Warehouse,
@@ -38,7 +37,6 @@ const isProductList = isListOf(isProduct)
 const isTierList = isListOf(isCustomerTier)
 const isPriceListList = isListOf(isPriceList)
 const isDiscountPolicyList = isListOf(isDiscountPolicy)
-const isApprovalPolicyList = isListOf(isApprovalPolicy)
 const isWarehouseList = isListOf(isWarehouse)
 const isInventoryList = isListOf(isInventory)
 const isPlanList = isListOf(isSubscriptionPlan)
@@ -104,14 +102,10 @@ export type DiscountPolicyReplaceBody = {
 }
 
 export type ApprovalPolicyReplaceBody = {
-  policies: Array<{
-    riskLevel: RiskLevel
-    minScore: number
-    maxScore: number
-    requiresManager: boolean
-    requiresFinance: boolean
-    hardLineExcessThreshold: number
-  }>
+  managerLineExcessPercent: number
+  financeLineExcessPercent: number
+  managerQuoteExcessPercent: number
+  financeQuoteExcessPercent: number
 }
 
 export type WarehouseBody = {
@@ -316,22 +310,22 @@ export const configApi = baseApi
         transformResponse: unwrap(isDiscountPolicyList, 'PUT /api/discount-policy'),
         invalidatesTags: ['DiscountPolicy'],
       }),
-      getApprovalPolicy: builder.query<ApprovalPolicy[], void>({
+      getApprovalPolicy: builder.query<ApprovalPolicy, void>({
         query: () => ({
           url: '/api/approval-policy',
-          validateStatus: (_response, json) => isApiResponse(json, isApprovalPolicyList),
+          validateStatus: (_response, json) => isApiResponse(json, isApprovalPolicy),
         }),
-        transformResponse: unwrap(isApprovalPolicyList, 'GET /api/approval-policy'),
+        transformResponse: unwrap(isApprovalPolicy, 'GET /api/approval-policy'),
         providesTags: ['ApprovalPolicy'],
       }),
-      replaceApprovalPolicy: builder.mutation<ApprovalPolicy[], ApprovalPolicyReplaceBody>({
+      replaceApprovalPolicy: builder.mutation<ApprovalPolicy, ApprovalPolicyReplaceBody>({
         query: (body) => ({
           url: '/api/approval-policy',
           method: 'PUT',
           body,
-          validateStatus: (_response, json) => isApiResponse(json, isApprovalPolicyList),
+          validateStatus: (_response, json) => isApiResponse(json, isApprovalPolicy),
         }),
-        transformResponse: unwrap(isApprovalPolicyList, 'PUT /api/approval-policy'),
+        transformResponse: unwrap(isApprovalPolicy, 'PUT /api/approval-policy'),
         invalidatesTags: ['ApprovalPolicy'],
       }),
       getWarehouses: builder.query<Warehouse[], void>({

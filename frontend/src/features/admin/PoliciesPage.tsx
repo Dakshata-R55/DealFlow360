@@ -10,9 +10,6 @@ import {
   useReplaceDiscountPolicyMutation,
 } from '../../stores/api/configApi'
 import { apiErrorMessage } from '../../types/api'
-import type { RiskLevel } from './types'
-
-const RISK_LEVELS: RiskLevel[] = ['NONE', 'MEDIUM', 'HIGH']
 
 export function PoliciesPage() {
   const tiersQuery = useGetCustomerTiersQuery()
@@ -73,14 +70,10 @@ export function PoliciesPage() {
     const form = new FormData(event.currentTarget)
     try {
       await replaceApproval({
-        policies: RISK_LEVELS.map((riskLevel) => ({
-          riskLevel,
-          minScore: Number(form.get(`${riskLevel}-min`)),
-          maxScore: Number(form.get(`${riskLevel}-max`)),
-          requiresManager: form.get(`${riskLevel}-manager`) === 'on',
-          requiresFinance: form.get(`${riskLevel}-finance`) === 'on',
-          hardLineExcessThreshold: Number(form.get(`${riskLevel}-hard`)),
-        })),
+        managerLineExcessPercent: Number(form.get('managerLine')),
+        financeLineExcessPercent: Number(form.get('financeLine')),
+        managerQuoteExcessPercent: Number(form.get('managerQuote')),
+        financeQuoteExcessPercent: Number(form.get('financeQuote')),
       }).unwrap()
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save approval policy'))
@@ -95,9 +88,7 @@ export function PoliciesPage() {
     return discountQuery.data?.find((row) => row.categoryId === categoryId)?.maxDiscountPct ?? 0
   }
 
-  function approvalRow(riskLevel: RiskLevel) {
-    return approvalQuery.data?.find((row) => row.riskLevel === riskLevel)
-  }
+  const approval = approvalQuery.data
 
   return (
     <div className="stack">
@@ -152,7 +143,7 @@ export function PoliciesPage() {
       </Panel>
 
       <Panel title="Discount limits">
-        <p className="muted">Allowed discount later is min(tier limit, category limit).</p>
+        <p className="muted">How far a sales rep may discount for each customer standing and product category.</p>
         {discountQuery.isLoading || tiersQuery.isLoading || categoriesQuery.isLoading ? (
           <p className="muted">Loading discount limits…</p>
         ) : null}
@@ -163,9 +154,10 @@ export function PoliciesPage() {
             onSubmit={onSaveDiscount}
             key={(discountQuery.data ?? []).map((row) => row.id).join('-') || 'discount-empty'}
           >
+            <p className="muted">Customer tier limits</p>
             {(tiersQuery.data ?? []).map((tier) => (
               <label className="field" key={`tier-${tier.id}`}>
-                {tier.name} (tier) %
+                {tier.name} %
                 <input
                   className="input"
                   type="number"
@@ -177,9 +169,10 @@ export function PoliciesPage() {
                 />
               </label>
             ))}
+            <p className="muted">Category limits</p>
             {(categoriesQuery.data ?? []).map((category) => (
               <label className="field" key={`category-${category.id}`}>
-                {category.name} (category) %
+                {category.name} %
                 <input
                   className="input"
                   type="number"
@@ -200,75 +193,65 @@ export function PoliciesPage() {
         ) : null}
       </Panel>
 
-      <Panel title="Approval thresholds">
+      <Panel title="Approval Policy">
+        <p className="muted">
+          Only Sales Manager and Finance approve quotes. Set how far over the discount ceiling a quote may go
+          before each of them is required.
+        </p>
         {approvalQuery.isLoading ? <p className="muted">Loading approval…</p> : null}
         {approvalQuery.isError ? <p className="error">Could not load approval policy.</p> : null}
-        {approvalQuery.isSuccess ? (
-          <form
-            className="form"
-            onSubmit={onSaveApproval}
-            key={(approvalQuery.data ?? []).map((row) => row.id).join('-') || 'approval-empty'}
-          >
-            {RISK_LEVELS.map((riskLevel) => {
-              const row = approvalRow(riskLevel)
-              return (
-                <fieldset key={riskLevel} className="form">
-                  <legend>{riskLevel}</legend>
-                  <label className="field">
-                    Min score
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      name={`${riskLevel}-min`}
-                      defaultValue={row?.minScore ?? 0}
-                      required
-                    />
-                  </label>
-                  <label className="field">
-                    Max score
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      name={`${riskLevel}-max`}
-                      defaultValue={row?.maxScore ?? 0}
-                      required
-                    />
-                  </label>
-                  <label className="field">
-                    Hard line excess
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      name={`${riskLevel}-hard`}
-                      defaultValue={row?.hardLineExcessThreshold ?? 0}
-                      required
-                    />
-                  </label>
-                  <label className="field">
-                    <input
-                      type="checkbox"
-                      name={`${riskLevel}-manager`}
-                      defaultChecked={row?.requiresManager ?? false}
-                    />
-                    Requires manager
-                  </label>
-                  <label className="field">
-                    <input
-                      type="checkbox"
-                      name={`${riskLevel}-finance`}
-                      defaultChecked={row?.requiresFinance ?? false}
-                    />
-                    Requires finance
-                  </label>
-                </fieldset>
-              )
-            })}
+        {approvalQuery.isSuccess && approval ? (
+          <form className="form" onSubmit={onSaveApproval} key={approval.id}>
+            <p className="muted">Sales Manager</p>
+            <label className="field">
+              Needed if any product is over its discount ceiling by %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                name="managerLine"
+                defaultValue={approval.managerLineExcessPercent}
+                required
+              />
+            </label>
+            <label className="field">
+              Needed if extra discount on the whole quote reaches %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                name="managerQuote"
+                defaultValue={approval.managerQuoteExcessPercent}
+                required
+              />
+            </label>
+            <p className="muted">Finance</p>
+            <label className="field">
+              Needed if any product is over its discount ceiling by %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                name="financeLine"
+                defaultValue={approval.financeLineExcessPercent}
+                required
+              />
+            </label>
+            <label className="field">
+              Needed if extra discount on the whole quote reaches %
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                name="financeQuote"
+                defaultValue={approval.financeQuoteExcessPercent}
+                required
+              />
+            </label>
             <div className="form-actions">
               <button className="button" type="submit" disabled={replaceApprovalState.isLoading}>
                 {replaceApprovalState.isLoading ? 'Saving…' : 'Save approval policy'}

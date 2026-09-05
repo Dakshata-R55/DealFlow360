@@ -1,4 +1,4 @@
-# Dealflow360 — MySQL 8 (host 3307), API 18080, optional UI profile on 18081
+# Dealflow360 — MySQL 8 (host 3307), API 18080, UI 18081
 services:
   mysql:
     image: mysql:8.4
@@ -45,7 +45,6 @@ services:
       - "18080:18080"
 
   frontend:
-    profiles: ["ui"]
     build:
       context: ./frontend
       dockerfile: Dockerfile

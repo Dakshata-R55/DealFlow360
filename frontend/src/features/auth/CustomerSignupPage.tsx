@@ -1,22 +1,21 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { APP_SUBTITLE, APP_TITLE } from '../../constants/app'
-import { useSignupMutation } from '../../stores/api/authApi'
+import { useSignupCustomerMutation } from '../../stores/api/authApi'
 import { useAppDispatch, useAppSelector } from '../../stores/hooks'
 import { apiErrorMessage } from '../../types/api'
 import { setCredentials } from './authSlice'
 import { homePath } from './types'
 
-export function SignupPage() {
+export function CustomerSignupPage() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const user = useAppSelector((state) => state.auth.user)
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
-  const [companyName, setCompanyName] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [signup, { isLoading }] = useSignupMutation()
+  const [signup, { isLoading }] = useSignupCustomerMutation()
   const [error, setError] = useState<string | null>(null)
 
   if (isAuthenticated) {
@@ -31,7 +30,7 @@ export function SignupPage() {
       return
     }
     try {
-      const session = await signup({ companyName, name, email, password }).unwrap()
+      const session = await signup({ name, email, password }).unwrap()
       dispatch(setCredentials({ user: session.user, accessToken: session.accessToken }))
       navigate(homePath(session.user.role), { replace: true })
     } catch (err) {
@@ -50,24 +49,12 @@ export function SignupPage() {
       </header>
       <main className="main">
         <section className="panel">
-          <h2>Create company</h2>
+          <h2>Customer sign up</h2>
           <form className="form" onSubmit={onSubmit}>
             <label className="field">
-              Company name
+              Name
               <input
                 className="input"
-                name="companyName"
-                value={companyName}
-                onChange={(event) => setCompanyName(event.target.value)}
-                required
-              />
-            </label>
-            <label className="field">
-              Your name
-              <input
-                className="input"
-                name="name"
-                autoComplete="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
@@ -78,7 +65,6 @@ export function SignupPage() {
               <input
                 className="input"
                 type="email"
-                name="email"
                 autoComplete="username"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -90,7 +76,6 @@ export function SignupPage() {
               <input
                 className="input"
                 type="password"
-                name="password"
                 autoComplete="new-password"
                 minLength={8}
                 value={password}
@@ -105,13 +90,10 @@ export function SignupPage() {
             ) : null}
             <div className="form-actions">
               <button className="button" type="submit" disabled={isLoading}>
-                {isLoading ? 'Creating…' : 'Sign up'}
+                {isLoading ? 'Creating…' : 'Create account'}
               </button>
               <Link className="link" to="/login">
                 Already have an account
-              </Link>
-              <Link className="link" to="/signup/customer">
-                Sign up as a customer
               </Link>
             </div>
           </form>
