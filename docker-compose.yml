@@ -40,6 +40,7 @@ services:
       MYSQL_USER: dealflow
       MYSQL_PASSWORD: dealflow360
       SERVER_PORT: "18080"
+      JWT_SECRET: dealflow360-hackathon-hmac-secret-key-min-32-bytes
     ports:
       - "18080:18080"
 
