@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Panel } from '../../components/common/Panel'
 import { useCreateSubscriptionPlanMutation, useGetSubscriptionPlansQuery } from '../../stores/api/configApi'
 import { apiErrorMessage } from '../../types/api'
-import type { PlanCycle } from './types'
+import type { CancellationRule, PlanCycle, ProrationRule } from './types'
 
 export function PlansPage() {
   const plansQuery = useGetSubscriptionPlansQuery()
@@ -10,8 +10,8 @@ export function PlansPage() {
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [cycle, setCycle] = useState<PlanCycle>('MONTHLY')
-  const [prorationRule, setProrationRule] = useState('PRORATE_DAYS')
-  const [cancellationRule, setCancellationRule] = useState('CREDIT_NOTE')
+  const [prorationRule, setProrationRule] = useState<ProrationRule>('PRORATE_DAYS')
+  const [cancellationRule, setCancellationRule] = useState<CancellationRule>('CREDIT_NOTE')
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -65,21 +65,26 @@ export function PlansPage() {
           </label>
           <label className="field">
             Proration rule
-            <input
+            <select
               className="input"
               value={prorationRule}
-              onChange={(event) => setProrationRule(event.target.value)}
-              required
-            />
+              onChange={(event) => setProrationRule(event.target.value as ProrationRule)}
+            >
+              <option value="PRORATE_DAYS">PRORATE_DAYS</option>
+              <option value="CHARGE_FULL">CHARGE_FULL</option>
+            </select>
           </label>
           <label className="field">
             Cancellation rule
-            <input
+            <select
               className="input"
               value={cancellationRule}
-              onChange={(event) => setCancellationRule(event.target.value)}
-              required
-            />
+              onChange={(event) => setCancellationRule(event.target.value as CancellationRule)}
+            >
+              <option value="CREDIT_NOTE">CREDIT_NOTE</option>
+              <option value="REFUND">REFUND</option>
+              <option value="FORFEIT">FORFEIT</option>
+            </select>
           </label>
           <div className="form-actions">
             <button className="button" type="submit" disabled={createPlanState.isLoading}>

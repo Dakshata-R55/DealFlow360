@@ -1,6 +1,8 @@
 package com.dealflow360.subscription.dto;
 
+import com.dealflow360.subscription.model.CancellationRule;
 import com.dealflow360.subscription.model.PlanCycle;
+import com.dealflow360.subscription.model.ProrationRule;
 import com.dealflow360.subscription.model.SubscriptionPlan;
 import java.time.Instant;
 
@@ -8,8 +10,8 @@ public record SubscriptionPlanResponse(
         long id,
         String name,
         PlanCycle cycle,
-        String prorationRule,
-        String cancellationRule,
+        ProrationRule prorationRule,
+        CancellationRule cancellationRule,
         boolean active,
         Instant createdAt,
         Instant updatedAt) {

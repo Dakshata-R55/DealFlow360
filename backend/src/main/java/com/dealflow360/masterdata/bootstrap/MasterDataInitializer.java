@@ -15,7 +15,9 @@ import com.dealflow360.pricing.model.CustomerTier;
 import com.dealflow360.pricing.model.PriceList;
 import com.dealflow360.pricing.repository.CustomerTierRepository;
 import com.dealflow360.pricing.repository.PriceListRepository;
+import com.dealflow360.subscription.model.CancellationRule;
 import com.dealflow360.subscription.model.PlanCycle;
+import com.dealflow360.subscription.model.ProrationRule;
 import com.dealflow360.subscription.repository.SubscriptionPlanRepository;
 import com.dealflow360.upsell.repository.UpsellRuleRepository;
 import com.dealflow360.warehouse.model.Warehouse;
@@ -396,8 +398,8 @@ public class MasterDataInitializer implements ApplicationRunner {
         warehouseRepository.upsertInventory(bangalore.id(), laptop.id(), 12, 0, 2, 5);
         warehouseRepository.upsertInventory(pune.id(), laptop.id(), 8, 0, 2, 5);
 
-        planRepository.insert(companyId, "Monthly Support", PlanCycle.MONTHLY, "PRORATE_DAYS", "CREDIT_NOTE", true);
-        planRepository.insert(companyId, "Annual Support", PlanCycle.YEARLY, "PRORATE_DAYS", "CREDIT_NOTE", true);
+        planRepository.insert(companyId, "Monthly Support", PlanCycle.MONTHLY, ProrationRule.PRORATE_DAYS, CancellationRule.CREDIT_NOTE, true);
+        planRepository.insert(companyId, "Annual Support", PlanCycle.YEARLY, ProrationRule.PRORATE_DAYS, CancellationRule.CREDIT_NOTE, true);
 
         upsellRuleRepository.insert(
                 companyId,

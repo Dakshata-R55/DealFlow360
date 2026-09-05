@@ -149,103 +149,129 @@ export function PoliciesPage() {
 
       <Panel title="Discount limits">
         <p className="muted">Allowed discount later is min(tier limit, category limit).</p>
-        <form className="form" onSubmit={onSaveDiscount}>
-          {(tiersQuery.data ?? []).map((tier) => (
-            <label className="field" key={`tier-${tier.id}`}>
-              {tier.name} (tier) %
-              <input
-                className="input"
-                type="number"
-                min="0"
-                step="0.01"
-                name={`tier-${tier.id}`}
-                defaultValue={discountForTier(tier.id)}
-                required
-              />
-            </label>
-          ))}
-          {(categoriesQuery.data ?? []).map((category) => (
-            <label className="field" key={`category-${category.id}`}>
-              {category.name} (category) %
-              <input
-                className="input"
-                type="number"
-                min="0"
-                step="0.01"
-                name={`category-${category.id}`}
-                defaultValue={discountForCategory(category.id)}
-                required
-              />
-            </label>
-          ))}
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={replaceDiscountState.isLoading}>
-              {replaceDiscountState.isLoading ? 'Saving…' : 'Save discount policy'}
-            </button>
-          </div>
-        </form>
+        {discountQuery.isLoading || tiersQuery.isLoading || categoriesQuery.isLoading ? (
+          <p className="muted">Loading discount limits…</p>
+        ) : null}
+        {discountQuery.isError ? <p className="error">Could not load discount policy.</p> : null}
+        {discountQuery.isSuccess && tiersQuery.isSuccess && categoriesQuery.isSuccess ? (
+          <form
+            className="form"
+            onSubmit={onSaveDiscount}
+            key={(discountQuery.data ?? []).map((row) => row.id).join('-') || 'discount-empty'}
+          >
+            {(tiersQuery.data ?? []).map((tier) => (
+              <label className="field" key={`tier-${tier.id}`}>
+                {tier.name} (tier) %
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  name={`tier-${tier.id}`}
+                  defaultValue={discountForTier(tier.id)}
+                  required
+                />
+              </label>
+            ))}
+            {(categoriesQuery.data ?? []).map((category) => (
+              <label className="field" key={`category-${category.id}`}>
+                {category.name} (category) %
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  name={`category-${category.id}`}
+                  defaultValue={discountForCategory(category.id)}
+                  required
+                />
+              </label>
+            ))}
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={replaceDiscountState.isLoading}>
+                {replaceDiscountState.isLoading ? 'Saving…' : 'Save discount policy'}
+              </button>
+            </div>
+          </form>
+        ) : null}
       </Panel>
 
       <Panel title="Approval thresholds">
-        <form className="form" onSubmit={onSaveApproval}>
-          {RISK_LEVELS.map((riskLevel) => {
-            const row = approvalRow(riskLevel)
-            return (
-              <fieldset key={riskLevel} className="form">
-                <legend>{riskLevel}</legend>
-                <label className="field">
-                  Min score
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    name={`${riskLevel}-min`}
-                    defaultValue={row?.minScore ?? 0}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  Max score
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    name={`${riskLevel}-max`}
-                    defaultValue={row?.maxScore ?? 0}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  Hard line excess
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    name={`${riskLevel}-hard`}
-                    defaultValue={row?.hardLineExcessThreshold ?? 0}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <input type="checkbox" name={`${riskLevel}-manager`} defaultChecked={row?.requiresManager} />
-                  Requires manager
-                </label>
-                <label className="field">
-                  <input type="checkbox" name={`${riskLevel}-finance`} defaultChecked={row?.requiresFinance} />
-                  Requires finance
-                </label>
-              </fieldset>
-            )
-          })}
-          <div className="form-actions">
-            <button className="button" type="submit" disabled={replaceApprovalState.isLoading}>
-              {replaceApprovalState.isLoading ? 'Saving…' : 'Save approval policy'}
-            </button>
-          </div>
-        </form>
+        {approvalQuery.isLoading ? <p className="muted">Loading approval…</p> : null}
+        {approvalQuery.isError ? <p className="error">Could not load approval policy.</p> : null}
+        {approvalQuery.isSuccess ? (
+          <form
+            className="form"
+            onSubmit={onSaveApproval}
+            key={(approvalQuery.data ?? []).map((row) => row.id).join('-') || 'approval-empty'}
+          >
+            {RISK_LEVELS.map((riskLevel) => {
+              const row = approvalRow(riskLevel)
+              return (
+                <fieldset key={riskLevel} className="form">
+                  <legend>{riskLevel}</legend>
+                  <label className="field">
+                    Min score
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      name={`${riskLevel}-min`}
+                      defaultValue={row?.minScore ?? 0}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    Max score
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      name={`${riskLevel}-max`}
+                      defaultValue={row?.maxScore ?? 0}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    Hard line excess
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      name={`${riskLevel}-hard`}
+                      defaultValue={row?.hardLineExcessThreshold ?? 0}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <input
+                      type="checkbox"
+                      name={`${riskLevel}-manager`}
+                      defaultChecked={row?.requiresManager ?? false}
+                    />
+                    Requires manager
+                  </label>
+                  <label className="field">
+                    <input
+                      type="checkbox"
+                      name={`${riskLevel}-finance`}
+                      defaultChecked={row?.requiresFinance ?? false}
+                    />
+                    Requires finance
+                  </label>
+                </fieldset>
+              )
+            })}
+            <div className="form-actions">
+              <button className="button" type="submit" disabled={replaceApprovalState.isLoading}>
+                {replaceApprovalState.isLoading ? 'Saving…' : 'Save approval policy'}
+              </button>
+            </div>
+          </form>
+        ) : null}
       </Panel>
     </div>
   )

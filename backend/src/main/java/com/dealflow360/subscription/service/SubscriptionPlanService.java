@@ -30,8 +30,8 @@ public class SubscriptionPlanService {
                 companyId,
                 request.name().trim(),
                 request.cycle(),
-                request.prorationRule().trim(),
-                request.cancellationRule().trim(),
+                request.prorationRule(),
+                request.cancellationRule(),
                 request.active() == null || request.active()));
     }
 
@@ -45,8 +45,8 @@ public class SubscriptionPlanService {
                 existing.companyId(),
                 request.name().trim(),
                 request.cycle(),
-                request.prorationRule().trim(),
-                request.cancellationRule().trim(),
+                request.prorationRule(),
+                request.cancellationRule(),
                 request.active() == null ? existing.active() : request.active(),
                 existing.createdAt(),
                 existing.updatedAt());

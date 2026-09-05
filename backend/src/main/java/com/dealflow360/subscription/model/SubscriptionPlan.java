@@ -7,8 +7,8 @@ public record SubscriptionPlan(
         long companyId,
         String name,
         PlanCycle cycle,
-        String prorationRule,
-        String cancellationRule,
+        ProrationRule prorationRule,
+        CancellationRule cancellationRule,
         boolean active,
         Instant createdAt,
         Instant updatedAt) {}

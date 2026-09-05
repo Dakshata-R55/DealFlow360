@@ -18,6 +18,8 @@ import {
   type DiscountPolicy,
   type Inventory,
   type PlanCycle,
+  type ProrationRule,
+  type CancellationRule,
   type PriceList,
   type PriceListItem,
   type Product,
@@ -129,8 +131,8 @@ export type InventoryBody = {
 export type SubscriptionPlanBody = {
   name: string
   cycle: PlanCycle
-  prorationRule: string
-  cancellationRule: string
+  prorationRule: ProrationRule
+  cancellationRule: CancellationRule
   active?: boolean
 }
 

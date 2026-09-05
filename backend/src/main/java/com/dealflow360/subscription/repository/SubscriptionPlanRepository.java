@@ -1,7 +1,9 @@
 package com.dealflow360.subscription.repository;
 
 import com.dealflow360.shared.exception.ConflictException;
+import com.dealflow360.subscription.model.CancellationRule;
 import com.dealflow360.subscription.model.PlanCycle;
+import com.dealflow360.subscription.model.ProrationRule;
 import com.dealflow360.subscription.model.SubscriptionPlan;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -49,16 +51,16 @@ public class SubscriptionPlanRepository {
             long companyId,
             String name,
             PlanCycle cycle,
-            String prorationRule,
-            String cancellationRule,
+            ProrationRule prorationRule,
+            CancellationRule cancellationRule,
             boolean active) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
             statement.setLong(1, companyId);
             statement.setString(2, name);
             statement.setString(3, cycle.name());
-            statement.setString(4, prorationRule);
-            statement.setString(5, cancellationRule);
+            statement.setString(4, prorationRule.name());
+            statement.setString(5, cancellationRule.name());
             statement.setBoolean(6, active);
             statement.executeUpdate();
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -83,8 +85,8 @@ public class SubscriptionPlanRepository {
         try (PreparedStatement statement = connection.prepareStatement(UPDATE)) {
             statement.setString(1, plan.name());
             statement.setString(2, plan.cycle().name());
-            statement.setString(3, plan.prorationRule());
-            statement.setString(4, plan.cancellationRule());
+            statement.setString(3, plan.prorationRule().name());
+            statement.setString(4, plan.cancellationRule().name());
             statement.setBoolean(5, plan.active());
             statement.setLong(6, plan.id());
             statement.setLong(7, plan.companyId());
@@ -142,8 +144,8 @@ public class SubscriptionPlanRepository {
                 resultSet.getLong("company_id"),
                 resultSet.getString("name"),
                 PlanCycle.valueOf(resultSet.getString("cycle")),
-                resultSet.getString("proration_rule"),
-                resultSet.getString("cancellation_rule"),
+                ProrationRule.valueOf(resultSet.getString("proration_rule")),
+                CancellationRule.valueOf(resultSet.getString("cancellation_rule")),
                 resultSet.getBoolean("active"),
                 instant(resultSet, "created_at"),
                 instant(resultSet, "updated_at"));

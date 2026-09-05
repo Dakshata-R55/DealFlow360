@@ -2,6 +2,8 @@ import { isRecord } from '../../types/api'
 
 export type BillingType = 'ONE_TIME' | 'RECURRING'
 export type PlanCycle = 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
+export type ProrationRule = 'PRORATE_DAYS' | 'CHARGE_FULL'
+export type CancellationRule = 'CREDIT_NOTE' | 'REFUND' | 'FORFEIT'
 export type RiskLevel = 'NONE' | 'MEDIUM' | 'HIGH'
 
 export type Category = {
@@ -103,8 +105,8 @@ export type SubscriptionPlan = {
   id: number
   name: string
   cycle: PlanCycle
-  prorationRule: string
-  cancellationRule: string
+  prorationRule: ProrationRule
+  cancellationRule: CancellationRule
   active: boolean
   createdAt: string
   updatedAt: string
@@ -281,8 +283,10 @@ export function isSubscriptionPlan(value: unknown): value is SubscriptionPlan {
     isNumber(value.id) &&
     typeof value.name === 'string' &&
     (value.cycle === 'MONTHLY' || value.cycle === 'QUARTERLY' || value.cycle === 'YEARLY') &&
-    typeof value.prorationRule === 'string' &&
-    typeof value.cancellationRule === 'string' &&
+    (value.prorationRule === 'PRORATE_DAYS' || value.prorationRule === 'CHARGE_FULL') &&
+    (value.cancellationRule === 'CREDIT_NOTE' ||
+      value.cancellationRule === 'REFUND' ||
+      value.cancellationRule === 'FORFEIT') &&
     typeof value.active === 'boolean' &&
     isIso(value.createdAt) &&
     isIso(value.updatedAt)
