@@ -43,6 +43,7 @@ const isWarehouseList = isListOf(isWarehouse)
 const isInventoryList = isListOf(isInventory)
 const isPlanList = isListOf(isSubscriptionPlan)
 const isUpsellRuleList = isListOf(isUpsellRule)
+const isStandingRuleList = isListOf(isStandingRule)
 
 function unwrap<T>(isData: (value: unknown) => value is T, label: string) {
   return (payload: unknown): T => {
@@ -142,8 +143,7 @@ export type UpsellRuleBody = {
 }
 
 export type StandingRuleBody = {
-  silverMinSpend: number
-  goldMinSpend: number
+  minSpend: number
   windowMonths?: number
 }
 
@@ -433,22 +433,22 @@ export const configApi = baseApi
         transformResponse: unwrap(isUpsellRule, 'POST /api/upsell-rules'),
         invalidatesTags: ['UpsellRule'],
       }),
-      getStandingRules: builder.query<StandingRule, void>({
+      getStandingRules: builder.query<StandingRule[], void>({
         query: () => ({
           url: '/api/standing-rules',
-          validateStatus: (_response, json) => isApiResponse(json, isStandingRule),
+          validateStatus: (_response, json) => isApiResponse(json, isStandingRuleList),
         }),
-        transformResponse: unwrap(isStandingRule, 'GET /api/standing-rules'),
+        transformResponse: unwrap(isStandingRuleList, 'GET /api/standing-rules'),
         providesTags: ['StandingRule'],
       }),
-      replaceStandingRules: builder.mutation<StandingRule, StandingRuleBody>({
-        query: (body) => ({
-          url: '/api/standing-rules',
+      replaceStandingRule: builder.mutation<StandingRule, { tierId: number; body: StandingRuleBody }>({
+        query: ({ tierId, body }) => ({
+          url: `/api/standing-rules/${tierId}`,
           method: 'PUT',
           body,
           validateStatus: (_response, json) => isApiResponse(json, isStandingRule),
         }),
-        transformResponse: unwrap(isStandingRule, 'PUT /api/standing-rules'),
+        transformResponse: unwrap(isStandingRule, 'PUT /api/standing-rules/{tierId}'),
         invalidatesTags: ['StandingRule'],
       }),
     }),
@@ -484,5 +484,5 @@ export const {
   useGetUpsellRulesQuery,
   useCreateUpsellRuleMutation,
   useGetStandingRulesQuery,
-  useReplaceStandingRulesMutation,
+  useReplaceStandingRuleMutation,
 } = configApi

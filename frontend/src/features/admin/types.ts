@@ -52,8 +52,8 @@ export type CustomerTier = {
 export type StandingRule = {
   id: number
   companyId: number
-  silverMinSpend: number
-  goldMinSpend: number
+  customerTierId: number
+  minSpend: number
   windowMonths: number
 }
 
@@ -209,8 +209,8 @@ export function isStandingRule(value: unknown): value is StandingRule {
   return (
     isNumber(value.id) &&
     isNumber(value.companyId) &&
-    isNumber(value.silverMinSpend) &&
-    isNumber(value.goldMinSpend) &&
+    isNumber(value.customerTierId) &&
+    isNumber(value.minSpend) &&
     isNumber(value.windowMonths)
   )
 }

@@ -1,10 +1,12 @@
 import {
+  isCustomerRecommendationList,
   isCustomerQuotation,
   isCustomerQuotationList,
   isQuoteRequest,
   isQuoteRequestList,
   isStandingProgressList,
   type CustomerQuotation,
+  type CustomerRecommendation,
   type QuoteRequest,
   type StandingProgress,
 } from '../../features/requests/types'
@@ -23,7 +25,7 @@ function unwrap<T>(isData: (value: unknown) => value is T, label: string) {
 
 export const quoteRequestApi = baseApi
   .enhanceEndpoints({
-    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuotationList', 'CustomerQuotation', 'Fulfillment', 'FulfillmentList', 'Inventory', 'CustomerStanding', 'Dashboard'],
+    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuoteRequestRecs', 'QuotationList', 'CustomerQuotation', 'Fulfillment', 'FulfillmentList', 'Inventory', 'CustomerStanding', 'Dashboard'],
   })
   .injectEndpoints({
     endpoints: (builder) => ({
@@ -42,6 +44,17 @@ export const quoteRequestApi = baseApi
         }),
         transformResponse: unwrap(isQuoteRequest, 'GET /api/customer/requests/{id}'),
         providesTags: (_result, _error, id) => [{ type: 'QuoteRequest', id }],
+      }),
+      getCustomerRequestRecommendations: builder.query<CustomerRecommendation[], number>({
+        query: (id) => ({
+          url: `/api/customer/requests/${id}/recommendations`,
+          validateStatus: (_response, json) => isApiResponse(json, isCustomerRecommendationList),
+        }),
+        transformResponse: unwrap(
+          isCustomerRecommendationList,
+          'GET /api/customer/requests/{id}/recommendations',
+        ),
+        providesTags: (_result, _error, id) => [{ type: 'QuoteRequestRecs', id }],
       }),
       createCustomerRequest: builder.mutation<QuoteRequest, { sellerCompanyId: number }>({
         query: (body) => ({
@@ -79,6 +92,7 @@ export const quoteRequestApi = baseApi
         transformResponse: unwrap(isQuoteRequest, 'POST /api/customer/requests/{id}/lines'),
         invalidatesTags: (_result, _error, { requestId }) => [
           { type: 'QuoteRequest', id: requestId },
+          { type: 'QuoteRequestRecs', id: requestId },
           'QuoteRequestList',
         ],
       }),
@@ -107,6 +121,7 @@ export const quoteRequestApi = baseApi
         transformResponse: unwrap(isQuoteRequest, 'DELETE /api/customer/requests/{id}/lines'),
         invalidatesTags: (_result, _error, { requestId }) => [
           { type: 'QuoteRequest', id: requestId },
+          { type: 'QuoteRequestRecs', id: requestId },
           'QuoteRequestList',
         ],
       }),
@@ -230,6 +245,7 @@ export const quoteRequestApi = baseApi
 export const {
   useGetCustomerRequestsQuery,
   useGetCustomerRequestQuery,
+  useGetCustomerRequestRecommendationsQuery,
   useCreateCustomerRequestMutation,
   usePatchCustomerRequestMutation,
   useAddCustomerRequestLineMutation,

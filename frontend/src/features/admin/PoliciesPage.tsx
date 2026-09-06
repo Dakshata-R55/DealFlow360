@@ -10,7 +10,7 @@ import {
   useGetStandingRulesQuery,
   useReplaceApprovalPolicyMutation,
   useReplaceDiscountPolicyMutation,
-  useReplaceStandingRulesMutation,
+  useReplaceStandingRuleMutation,
 } from '../../stores/api/configApi'
 import { useGetCustomersQuery, usePatchCustomerTierMutation } from '../../stores/api/quotationApi'
 import { apiErrorMessage } from '../../types/api'
@@ -32,18 +32,18 @@ export function PoliciesPage() {
   const [createTier, createTierState] = useCreateCustomerTierMutation()
   const [replaceDiscount, replaceDiscountState] = useReplaceDiscountPolicyMutation()
   const [replaceApproval, replaceApprovalState] = useReplaceApprovalPolicyMutation()
-  const [replaceStanding, replaceStandingState] = useReplaceStandingRulesMutation()
+  const [replaceStanding, replaceStandingState] = useReplaceStandingRuleMutation()
   const [patchTier, patchTierState] = usePatchCustomerTierMutation()
   const [modal, setModal] = useState<PolicyModal>(null)
   const [error, setError] = useState<string | null>(null)
   const [tierName, setTierName] = useState('')
   const [tierLimit, setTierLimit] = useState('5')
+  const [addLookback, setAddLookback] = useState('6')
+  const [addMinSpend, setAddMinSpend] = useState('0')
   const [editStandingId, setEditStandingId] = useState<number | null>(null)
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [categoryLimit, setCategoryLimit] = useState('')
-  const [silverMin, setSilverMin] = useState('')
-  const [goldMin, setGoldMin] = useState('')
-  const [windowMonths, setWindowMonths] = useState('6')
+  const [drafts, setDrafts] = useState<Record<number, { windowMonths: string; minSpend: string }>>({})
   const [customerQuery, setCustomerQuery] = useState('')
 
   const approval = approvalQuery.data
@@ -51,17 +51,19 @@ export function PoliciesPage() {
   const categories = categoriesQuery.data ?? []
   const policies = discountQuery.data ?? []
   const customers = customersQuery.data ?? []
-  const standing = standingQuery.data
+  const standingRules = standingQuery.data ?? []
   const selectedCategory = categories.find((row) => row.id === categoryId) ?? categories[0] ?? null
 
   useEffect(() => {
-    if (!standing) {
-      return
+    const next: Record<number, { windowMonths: string; minSpend: string }> = {}
+    for (const rule of standingRules) {
+      next[rule.customerTierId] = {
+        windowMonths: String(rule.windowMonths),
+        minSpend: String(rule.minSpend),
+      }
     }
-    setSilverMin(String(standing.silverMinSpend))
-    setGoldMin(String(standing.goldMinSpend))
-    setWindowMonths(String(standing.windowMonths))
-  }, [standing])
+    setDrafts(next)
+  }, [standingRules])
 
   function closeModal() {
     setModal(null)
@@ -107,8 +109,14 @@ export function PoliciesPage() {
       await replaceDiscount({
         policies: buildPolicies({ customerTierId: created.id, categoryId: null, maxDiscountPct: pct }),
       }).unwrap()
+      await replaceStanding({
+        tierId: created.id,
+        body: { minSpend: Number(addMinSpend), windowMonths: Number(addLookback) },
+      }).unwrap()
       setTierName('')
       setTierLimit('5')
+      setAddLookback('6')
+      setAddMinSpend('0')
       closeModal()
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not add standing'))
@@ -155,14 +163,16 @@ export function PoliciesPage() {
     }
   }
 
-  async function onSaveSpend(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function onSaveSpend(tierId: number) {
     setError(null)
+    const draft = drafts[tierId]
+    if (!draft) {
+      return
+    }
     try {
       await replaceStanding({
-        silverMinSpend: Number(silverMin),
-        goldMinSpend: Number(goldMin),
-        windowMonths: Number(windowMonths),
+        tierId,
+        body: { minSpend: Number(draft.minSpend), windowMonths: Number(draft.windowMonths) },
       }).unwrap()
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save spend rules'))
@@ -200,56 +210,14 @@ export function PoliciesPage() {
         }
       >
         <p className="muted">
-          Discount ceilings by standing. Confirmed spend in the lookback window can raise standing — it never drops
-          on its own.
+          Each standing has its own lookback and spend to reach it. Confirmed spend can raise standing — it never
+          drops on its own. Min spend 0 means that standing is not earned from spend.
         </p>
         {modal == null && error ? (
           <p className="error" role="alert">
             {error}
           </p>
         ) : null}
-        <form className="standing-rules-inline" onSubmit={(event) => void onSaveSpend(event)}>
-          <label className="field">
-            Lookback (months)
-            <input
-              className="input"
-              type="number"
-              min="1"
-              max="24"
-              step="1"
-              value={windowMonths}
-              onChange={(event) => setWindowMonths(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Silver from (₹)
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={silverMin}
-              onChange={(event) => setSilverMin(event.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            Gold from (₹)
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={goldMin}
-              onChange={(event) => setGoldMin(event.target.value)}
-              required
-            />
-          </label>
-          <button className="button" type="submit" disabled={replaceStandingState.isLoading}>
-            {replaceStandingState.isLoading ? 'Saving…' : 'Save rules'}
-          </button>
-        </form>
         {tiersQuery.isLoading ? <p className="muted">Loading standing…</p> : null}
         {tiers.length > 0 ? (
           <div className="policy-list-scroll">
@@ -257,32 +225,80 @@ export function PoliciesPage() {
               <thead>
                 <tr>
                   <th>Standing</th>
+                  <th>Lookback</th>
+                  <th>Min spend (₹)</th>
                   <th>Discount ceiling</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {tiers.map((tier) => (
-                  <tr key={tier.id}>
-                    <td>
-                      <span className="table-primary">{tier.name}</span>
-                    </td>
-                    <td>{ceilingForStanding(tier.id, tier.defaultDiscountLimit)}%</td>
-                    <td>
-                      <button
-                        className="button button-secondary"
-                        type="button"
-                        onClick={() => {
-                          setEditStandingId(tier.id)
-                          setTierLimit(String(ceilingForStanding(tier.id, tier.defaultDiscountLimit)))
-                          setModal('standing-edit')
-                        }}
-                      >
-                        Ceiling
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {tiers.map((tier) => {
+                  const draft = drafts[tier.id] ?? { windowMonths: '6', minSpend: '0' }
+                  return (
+                    <tr key={tier.id}>
+                      <td>
+                        <span className="table-primary">{tier.name}</span>
+                      </td>
+                      <td>
+                        <input
+                          className="input"
+                          type="number"
+                          min="1"
+                          max="24"
+                          step="1"
+                          aria-label={`${tier.name} lookback months`}
+                          value={draft.windowMonths}
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [tier.id]: { ...draft, windowMonths: event.target.value },
+                            }))
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          aria-label={`${tier.name} min spend`}
+                          value={draft.minSpend}
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [tier.id]: { ...draft, minSpend: event.target.value },
+                            }))
+                          }
+                        />
+                      </td>
+                      <td>{ceilingForStanding(tier.id, tier.defaultDiscountLimit)}%</td>
+                      <td>
+                        <div className="form-actions">
+                          <button
+                            className="button"
+                            type="button"
+                            disabled={replaceStandingState.isLoading}
+                            onClick={() => void onSaveSpend(tier.id)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="button button-secondary"
+                            type="button"
+                            onClick={() => {
+                              setEditStandingId(tier.id)
+                              setTierLimit(String(ceilingForStanding(tier.id, tier.defaultDiscountLimit)))
+                              setModal('standing-edit')
+                            }}
+                          >
+                            Ceiling
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -463,6 +479,31 @@ export function PoliciesPage() {
                 step="0.01"
                 value={tierLimit}
                 onChange={(event) => setTierLimit(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Lookback (months)
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="24"
+                step="1"
+                value={addLookback}
+                onChange={(event) => setAddLookback(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Min spend (₹)
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={addMinSpend}
+                onChange={(event) => setAddMinSpend(event.target.value)}
                 required
               />
             </label>

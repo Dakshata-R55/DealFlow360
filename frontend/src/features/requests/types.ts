@@ -78,6 +78,13 @@ export type QuoteRequest = {
   lines: QuoteRequestLine[]
 }
 
+export type CustomerRecommendation = {
+  productId: number
+  productName: string
+  promotion: boolean
+  unitPrice: number
+}
+
 const STATUSES: QuoteRequestStatus[] = [
   'DRAFT',
   'SUBMITTED',
@@ -196,6 +203,20 @@ export function isQuoteRequest(value: unknown): value is QuoteRequest {
 export const isSellerCompanyList = isListOf(isSellerCompany)
 export const isPublicProductList = isListOf(isPublicProduct)
 export const isQuoteRequestList = isListOf(isQuoteRequest)
+
+export function isCustomerRecommendation(value: unknown): value is CustomerRecommendation {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    isNumber(value.productId) &&
+    typeof value.productName === 'string' &&
+    typeof value.promotion === 'boolean' &&
+    isNumber(value.unitPrice)
+  )
+}
+
+export const isCustomerRecommendationList = isListOf(isCustomerRecommendation)
 
 export function priceAmountLabel(product: PublicProduct): string {
   const amount = product.indicativePrice.toLocaleString('en-IN', {
@@ -334,8 +355,6 @@ export type StandingProgress = {
   standingName: string
   spend: number
   windowMonths: number
-  silverMinSpend: number
-  goldMinSpend: number
   nextStanding: string | null
   amountToNext: number | null
 }
@@ -350,8 +369,6 @@ export function isStandingProgress(value: unknown): value is StandingProgress {
     typeof value.standingName === 'string' &&
     isNumber(value.spend) &&
     isNumber(value.windowMonths) &&
-    isNumber(value.silverMinSpend) &&
-    isNumber(value.goldMinSpend) &&
     (value.nextStanding === null || typeof value.nextStanding === 'string') &&
     (value.amountToNext === null || isNumber(value.amountToNext))
   )
