@@ -10,6 +10,7 @@ export function TicketCard({
   meta,
   amount,
   assignee,
+  hint,
   onOpen,
   dragPayload,
   dragging,
@@ -23,6 +24,7 @@ export function TicketCard({
   meta: string
   amount: string
   assignee?: string
+  hint?: string | null
   onOpen: () => void
   dragPayload?: string
   dragging?: boolean
@@ -78,6 +80,7 @@ export function TicketCard({
         <p className="quote-card-customer">{title}</p>
         <p className="quote-card-meta">{meta}</p>
         <p className="quote-card-amount">{amount}</p>
+        {hint ? <p className="quote-card-hint">{hint}</p> : null}
       </div>
     </button>
   )

@@ -4,17 +4,19 @@ import { notifyError, notifyMoved } from '../../components/common/notify'
 import { Panel } from '../../components/common/Panel'
 import { StatusBadge, toneForQuotationStatus } from '../../components/ui/StatusBadge'
 import { canAccessQuotations, canWriteQuotations } from '../../features/auth/types'
-import { useGetProductsQuery } from '../../stores/api/configApi'
+import { useGetProductsQuery, useGetCustomerTiersQuery } from '../../stores/api/configApi'
 import {
   useAddQuotationLineMutation,
   useApproveQuotationMutation,
   useAssignQuotationMutation,
+  useCancelQuotationMutation,
   useDeleteQuotationLineMutation,
   useDismissRecommendationMutation,
   useGetQuotationQuery,
   useGetRecommendationsQuery,
   useGetSalesUsersQuery,
   useNegotiateQuotationMutation,
+  usePatchCustomerTierMutation,
   useReopenQuotationMutation,
   useReturnQuotationToPendingMutation,
   useReturnQuotationToQueueMutation,
@@ -51,6 +53,8 @@ export function QuotationPanel({
   const quoteQuery = useGetQuotationQuery(quotationId, { skip: !Number.isFinite(quotationId) })
   const recsQuery = useGetRecommendationsQuery(quotationId, { skip: !Number.isFinite(quotationId) })
   const products = useGetProductsQuery()
+  const tiersQuery = useGetCustomerTiersQuery()
+  const [patchTier, patchTierState] = usePatchCustomerTierMutation()
   const [addLine, addLineState] = useAddQuotationLineMutation()
   const [updateLine] = useUpdateQuotationLineMutation()
   const [deleteLine] = useDeleteQuotationLineMutation()
@@ -62,6 +66,7 @@ export function QuotationPanel({
   const [approveQuote, approveState] = useApproveQuotationMutation()
   const [returnQuoteToQueue, returnToQueueState] = useReturnQuotationToQueueMutation()
   const [returnQuoteToPending, returnToPendingState] = useReturnQuotationToPendingMutation()
+  const [cancelQuote, cancelState] = useCancelQuotationMutation()
   const [dismissRec] = useDismissRecommendationMutation()
   const salesUsers = useGetSalesUsersQuery()
   const [error, setError] = useState<string | null>(null)
@@ -73,13 +78,15 @@ export function QuotationPanel({
   const canEdit = Boolean(quote) && quote?.status === 'DRAFT' && canWriteQuotations(user?.role)
   const canSubmit = canWriteQuotations(user?.role)
   const canManageTicket = canAccessQuotations(user?.role)
+  const canAssignStanding = user?.role === 'ADMIN' || user?.role === 'SALES_MANAGER'
   const statusBusy =
     submitState.isLoading ||
     reopenState.isLoading ||
     negotiateState.isLoading ||
     approveState.isLoading ||
     returnToQueueState.isLoading ||
-    returnToPendingState.isLoading
+    returnToPendingState.isLoading ||
+    cancelState.isLoading
   const statusOptions = quote
     ? legalStatusOptions({
         status: quote.status,
@@ -162,7 +169,7 @@ export function QuotationPanel({
     try {
       await deleteLine({ quotationId, lineId }).unwrap()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not remove line'))
+      setError(apiErrorMessage(err, 'Could not remove product'))
     }
   }
 
@@ -212,6 +219,23 @@ export function QuotationPanel({
     }
   }
 
+  async function onRevoke() {
+    setError(null)
+    try {
+      if (quote?.status === 'DRAFT') {
+        await cancelQuote(quotationId).unwrap()
+        notifyMoved(quote.sourceRequestNumber ? 'To do' : 'Cancelled')
+        onReturnedToQueue?.()
+        return
+      }
+      await reopenQuote(quotationId).unwrap()
+      notifyMoved('Draft')
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not revoke'))
+      notifyError(apiErrorMessage(err, 'Could not revoke'))
+    }
+  }
+
   async function onAssign(salesRepId: number) {
     setError(null)
     try {
@@ -249,6 +273,8 @@ export function QuotationPanel({
   }
 
   const selectedProduct = (products.data ?? []).find((product) => product.id === Number(productId))
+  const canRevokeOffer = statusOptions.some((option) => option.action === 'reopen')
+  const showRevoke = canEdit || canRevokeOffer
 
   if (!Number.isFinite(quotationId)) {
     return <p className="error">Invalid quotation.</p>
@@ -261,7 +287,8 @@ export function QuotationPanel({
   }
 
   return (
-    <div className="stack">
+    <div className="quote-sheet">
+      <div className="quote-sheet-main">
       <Panel
         title={quote.quoteNumber}
         badge={<StatusBadge label={statusLabel(quote.status)} tone={toneForQuotationStatus(quote.status)} />}
@@ -311,6 +338,12 @@ export function QuotationPanel({
         {quote.status === 'APPROVED' ? (
           <p className="muted">Approved. The customer confirms on credit from their portal. Status stays here until they do.</p>
         ) : null}
+        {quote.status === 'PENDING_APPROVAL' || quote.status === 'NEGOTIATION' ? (
+          <p className="muted">
+            High-risk quotes need Finance to Approve. Manager can send them to Negotiation or back. Medium-risk quotes
+            Manager or Finance can Approve. Negotiation is optional.
+          </p>
+        ) : null}
         {quote.status === 'CONFIRMED' ? (
           <p className="muted">Purchased. Status cannot be moved back from Confirmed.</p>
         ) : null}
@@ -325,8 +358,30 @@ export function QuotationPanel({
             <dd>{quote.customerName}</dd>
           </div>
           <div>
-            <dt>Tier</dt>
-            <dd>{quote.customerTierName}</dd>
+            <dt>Standing</dt>
+            <dd>
+              {canAssignStanding ? (
+                <select
+                  className="input"
+                  value={quote.customerTierId}
+                  disabled={patchTierState.isLoading}
+                  onChange={(event) => {
+                    void patchTier({ id: quote.customerId, customerTierId: Number(event.target.value) })
+                  }}
+                >
+                  {(tiersQuery.data ?? []).some((tier) => tier.id === quote.customerTierId) ? null : (
+                    <option value={quote.customerTierId}>{quote.customerTierName}</option>
+                  )}
+                  {(tiersQuery.data ?? []).map((tier) => (
+                    <option key={tier.id} value={tier.id}>
+                      {tier.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                quote.customerTierName
+              )}
+            </dd>
           </div>
           <div>
             <dt>Price list</dt>
@@ -421,7 +476,7 @@ export function QuotationPanel({
                 )
               ) : null}
               <p>
-                Line total ₹{money(line.lineTotal)} · Margin ₹{money(line.marginAmount)} (
+                Product total ₹{money(line.lineTotal)} · Margin ₹{money(line.marginAmount)} (
                 {line.marginPercent}%)
               </p>
               {canEdit ? (
@@ -482,7 +537,33 @@ export function QuotationPanel({
         ) : null}
       </Panel>
 
-      <Panel title="Quote summary">
+      <Panel title="Recommended">
+        {recsQuery.isLoading ? <p className="muted">Loading suggestions…</p> : null}
+        {(recsQuery.data ?? []).length === 0 ? <p className="muted">No suggestions right now.</p> : null}
+        <div className="recs">
+          {(recsQuery.data ?? []).map((rec) => (
+            <article key={rec.productId} className="rec-card">
+              <h3>{rec.productName}</h3>
+              <p>+₹{money(rec.marginDelta)} margin</p>
+              {rec.promotion ? <p className="muted">Promotion</p> : null}
+              {canEdit ? (
+                <div className="form-actions">
+                  <button className="button" type="button" onClick={() => void onAddRecommendation(rec.productId)}>
+                    Add to Quote
+                  </button>
+                  <button className="link" type="button" onClick={() => void onDismiss(rec.productId)}>
+                    Dismiss
+                  </button>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </Panel>
+      </div>
+
+      <aside className="quote-sheet-side">
+      <Panel title="Quote summary" className="quote-summary">
         <dl className="facts">
           <div>
             <dt>Subtotal</dt>
@@ -521,49 +602,38 @@ export function QuotationPanel({
             <dd>{routeLabel(quote.likelyRoute)}</dd>
           </div>
         </dl>
-        {canEdit ? (
+        {canEdit || showRevoke ? (
           <div className="form-actions">
-            <button className="button" type="button" disabled={saveDraftState.isLoading} onClick={() => void onSaveDraft()}>
-              {saveDraftState.isLoading ? 'Saving…' : 'Save Draft'}
-            </button>
-            <button
-              className="button"
-              type="button"
-              disabled={submitState.isLoading || quote.lines.length === 0}
-              onClick={() => void onSubmit()}
-            >
-              {submitState.isLoading ? 'Submitting…' : 'Submit for Approval'}
-
-            </button>
+            {canEdit ? (
+              <>
+                <button className="button" type="button" disabled={saveDraftState.isLoading} onClick={() => void onSaveDraft()}>
+                  {saveDraftState.isLoading ? 'Saving…' : 'Save Draft'}
+                </button>
+                <button
+                  className="button"
+                  type="button"
+                  disabled={submitState.isLoading || quote.lines.length === 0}
+                  onClick={() => void onSubmit()}
+                >
+                  {submitState.isLoading ? 'Submitting…' : 'Submit for Approval'}
+                </button>
+              </>
+            ) : null}
+            {showRevoke ? (
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={statusBusy}
+                onClick={() => void onRevoke()}
+              >
+                {cancelState.isLoading || reopenState.isLoading ? 'Revoking…' : 'Revoke'}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </Panel>
-
       {quote.status === 'CONFIRMED' ? <FulfillmentPanel quotationId={quote.id} ops={user?.role === 'FINANCE_OPS'} /> : null}
-
-      <Panel title="Recommended">
-        {recsQuery.isLoading ? <p className="muted">Loading suggestions…</p> : null}
-        {(recsQuery.data ?? []).length === 0 ? <p className="muted">No suggestions right now.</p> : null}
-        <div className="recs">
-          {(recsQuery.data ?? []).map((rec) => (
-            <article key={rec.productId} className="rec-card">
-              <h3>{rec.productName}</h3>
-              <p>+₹{money(rec.marginDelta)} margin</p>
-              {rec.promotion ? <p className="muted">Promotion</p> : null}
-              {canEdit ? (
-                <div className="form-actions">
-                  <button className="button" type="button" onClick={() => void onAddRecommendation(rec.productId)}>
-                    Add to Quote
-                  </button>
-                  <button className="link" type="button" onClick={() => void onDismiss(rec.productId)}>
-                    Dismiss
-                  </button>
-                </div>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      </Panel>
+      </aside>
     </div>
   )
 }

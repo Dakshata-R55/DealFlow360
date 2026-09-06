@@ -329,7 +329,7 @@ function RequestLine({
       </p>
       <p>
         MRP {rupee(line.mrp)}
-        {billing} each · Line MRP {rupee(line.lineMrp)}
+        {billing} each · Product MRP {rupee(line.lineMrp)}
       </p>
       <p className="ok-text">Available by default: {percentLabel(line.availableDiscountPercent)}</p>
       <p className="muted">
@@ -361,7 +361,7 @@ function RequestLine({
       )}
       <p>
         After expected {rupee(line.expectedUnitPrice)}
-        {billing} each · Line {rupee(line.expectedLineTotal)}
+        {billing} each · Product {rupee(line.expectedLineTotal)}
       </p>
       <p>Qty: {line.quantity}</p>
       {canEdit ? (

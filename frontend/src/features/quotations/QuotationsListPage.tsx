@@ -2,7 +2,7 @@ import { useState, type DragEvent, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Drawer } from '../../components/common/Drawer'
 import { KanbanColumn, type DropHint } from '../../components/common/KanbanColumn'
-import { notifyBlocked, notifyError, notifyMoved } from '../../components/common/notify'
+import { notifyError, notifyMoved } from '../../components/common/notify'
 import { Panel } from '../../components/common/Panel'
 import { TicketCard } from '../../components/common/TicketCard'
 import { StatusBadge, toneForQuotationStatus } from '../../components/ui/StatusBadge'
@@ -28,6 +28,7 @@ import { useAppSelector } from '../../stores/hooks'
 import { apiErrorMessage } from '../../types/api'
 import { QuotationPanel } from './QuotationDetailPage'
 import {
+  blockedDropReason,
   legalStatusOptions,
   money,
   PIPELINE_COLUMNS,
@@ -219,7 +220,14 @@ export function QuotationsListPage() {
       return
     }
     if (!action) {
-      notifyBlocked(boardColumnLabel(toColumn))
+      if (payload.kind === 'quote') {
+        const quote = rows.find((item) => item.id === payload.id)
+        if (quote) {
+          notifyError(blockedDropReason(toColumn, quote, user?.role))
+          return
+        }
+      }
+      notifyError(`Cannot move this ticket to ${boardColumnLabel(toColumn)}`)
       return
     }
     setDropBusy(true)

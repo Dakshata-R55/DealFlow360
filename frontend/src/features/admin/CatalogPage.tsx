@@ -10,9 +10,10 @@ import {
   useGetCustomerTiersQuery,
   useGetPriceListsQuery,
   useGetProductsQuery,
+  useUpdatePriceListMutation,
 } from '../../stores/api/configApi'
 import { apiErrorMessage } from '../../types/api'
-import type { BillingType } from './types'
+import type { BillingType, PriceList } from './types'
 
 type CatalogModal = 'category' | 'product' | 'priceList' | null
 
@@ -24,7 +25,9 @@ export function CatalogPage() {
   const [createCategory, createCategoryState] = useCreateCategoryMutation()
   const [createProduct, createProductState] = useCreateProductMutation()
   const [createPriceList, createPriceListState] = useCreatePriceListMutation()
+  const [updatePriceList, updatePriceListState] = useUpdatePriceListMutation()
   const [modal, setModal] = useState<CatalogModal>(null)
+  const [editingPriceList, setEditingPriceList] = useState<PriceList | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [productError, setProductError] = useState<string | null>(null)
   const [priceListError, setPriceListError] = useState<string | null>(null)
@@ -43,6 +46,7 @@ export function CatalogPage() {
 
   function closeModal() {
     setModal(null)
+    setEditingPriceList(null)
     setCategoryError(null)
     setProductError(null)
     setPriceListError(null)
@@ -82,23 +86,46 @@ export function CatalogPage() {
     }
   }
 
-  async function onCreatePriceList(event: FormEvent<HTMLFormElement>) {
+  function openAddPriceList() {
+    setEditingPriceList(null)
+    setPriceListName('')
+    setPriceListCurrency('INR')
+    setPriceListTierId('')
+    setPriceListError(null)
+    setModal('priceList')
+  }
+
+  function openEditPriceList(list: PriceList) {
+    setEditingPriceList(list)
+    setPriceListName(list.name)
+    setPriceListCurrency(list.currency)
+    setPriceListTierId(String(list.customerTierId))
+    setPriceListError(null)
+    setModal('priceList')
+  }
+
+  async function onSavePriceList(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setPriceListError(null)
     const tier = (tiers.data ?? []).find((row) => String(row.id) === priceListTierId)
     const currency = priceListCurrency.trim().toUpperCase()
+    const body = {
+      name: priceListName.trim() || (tier ? `${tier.name} ${currency}` : currency),
+      currency,
+      customerTierId: Number(priceListTierId),
+    }
     try {
-      await createPriceList({
-        name: priceListName.trim() || (tier ? `${tier.name} ${currency}` : currency),
-        currency,
-        customerTierId: Number(priceListTierId),
-      }).unwrap()
+      if (editingPriceList) {
+        await updatePriceList({ id: editingPriceList.id, body }).unwrap()
+      } else {
+        await createPriceList(body).unwrap()
+      }
       setPriceListName('')
       setPriceListCurrency('INR')
       setPriceListTierId('')
       closeModal()
     } catch (err) {
-      setPriceListError(apiErrorMessage(err, 'Could not create price list'))
+      setPriceListError(apiErrorMessage(err, 'Could not save price list'))
     }
   }
 
@@ -190,7 +217,7 @@ export function CatalogPage() {
       <Panel
         title="Price lists"
         badge={
-          <button className="button" type="button" onClick={() => setModal('priceList')}>
+          <button className="button" type="button" onClick={openAddPriceList}>
             Add price list
           </button>
         }
@@ -214,7 +241,11 @@ export function CatalogPage() {
             </thead>
             <tbody>
               {priceListRows.map((list) => (
-                <tr key={list.id}>
+                <tr
+                  key={list.id}
+                  className="board-row"
+                  onClick={() => openEditPriceList(list)}
+                >
                   <td>
                     <span className="table-primary">{list.name}</span>
                   </td>
@@ -382,8 +413,8 @@ export function CatalogPage() {
       ) : null}
 
       {modal === 'priceList' ? (
-        <Modal title="Add price list" onClose={closeModal}>
-          <form className="form" onSubmit={onCreatePriceList}>
+        <Modal title={editingPriceList ? 'Edit price list' : 'Add price list'} onClose={closeModal}>
+          <form className="form" onSubmit={onSavePriceList}>
             <label className="field field-full" htmlFor="add-list-tier">
               Customer tier
               <select
@@ -428,8 +459,16 @@ export function CatalogPage() {
               </p>
             ) : null}
             <div className="form-actions">
-              <button className="button" type="submit" disabled={createPriceListState.isLoading}>
-                {createPriceListState.isLoading ? 'Saving…' : 'Add price list'}
+              <button
+                className="button"
+                type="submit"
+                disabled={createPriceListState.isLoading || updatePriceListState.isLoading}
+              >
+                {createPriceListState.isLoading || updatePriceListState.isLoading
+                  ? 'Saving…'
+                  : editingPriceList
+                    ? 'Save list'
+                    : 'Add price list'}
               </button>
             </div>
           </form>

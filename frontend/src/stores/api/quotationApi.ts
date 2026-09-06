@@ -43,7 +43,7 @@ export type PatchQuotationLineBody = {
 
 export const quotationApi = baseApi
   .enhanceEndpoints({
-    addTagTypes: ['Customer', 'Quotation', 'QuotationList', 'Recommendation', 'SalesUser', 'QuoteRequestList', 'CustomerQuotation'],
+    addTagTypes: ['Customer', 'Quotation', 'QuotationList', 'Recommendation', 'SalesUser', 'QuoteRequestList', 'CustomerQuotation', 'Dashboard', 'Inventory'],
   })
   .injectEndpoints({
     endpoints: (builder) => ({
@@ -54,6 +54,16 @@ export const quotationApi = baseApi
         }),
         transformResponse: unwrap(isCustomerList, 'GET /api/customers'),
         providesTags: ['Customer'],
+      }),
+      patchCustomerTier: builder.mutation<Customer, { id: number; customerTierId: number }>({
+        query: ({ id, customerTierId }) => ({
+          url: `/api/customers/${id}/tier`,
+          method: 'PATCH',
+          body: { customerTierId },
+          validateStatus: (_response, json) => isApiResponse(json, isCustomer),
+        }),
+        transformResponse: unwrap(isCustomer, 'PATCH /api/customers/{id}/tier'),
+        invalidatesTags: ['Customer', 'QuotationList', 'Quotation', 'Dashboard'],
       }),
       getQuotations: builder.query<Quotation[], void>({
         query: () => ({
@@ -90,7 +100,7 @@ export const quotationApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isQuotation),
         }),
         transformResponse: unwrap(isQuotation, 'POST /api/quotations'),
-        invalidatesTags: ['QuotationList'],
+        invalidatesTags: ['QuotationList', 'Dashboard'],
       }),
       saveQuotationDraft: builder.mutation<Quotation, number>({
         query: (id) => ({
@@ -99,7 +109,7 @@ export const quotationApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isQuotation),
         }),
         transformResponse: unwrap(isQuotation, 'PATCH /api/quotations/{id}'),
-        invalidatesTags: (_result, _error, id) => ['QuotationList', { type: 'Quotation', id }],
+        invalidatesTags: (_result, _error, id) => ['QuotationList', 'Dashboard', { type: 'Quotation', id }],
       }),
       addQuotationLine: builder.mutation<Quotation, { quotationId: number; body: AddQuotationLineBody }>({
         query: ({ quotationId, body }) => ({
@@ -111,6 +121,7 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/lines'),
         invalidatesTags: (_result, _error, { quotationId }) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id: quotationId },
           { type: 'Recommendation', id: quotationId },
         ],
@@ -128,6 +139,7 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'PATCH /api/quotations/{id}/lines'),
         invalidatesTags: (_result, _error, { quotationId }) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id: quotationId },
           { type: 'Recommendation', id: quotationId },
         ],
@@ -141,6 +153,7 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'DELETE /api/quotations/{id}/lines'),
         invalidatesTags: (_result, _error, { quotationId }) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id: quotationId },
           { type: 'Recommendation', id: quotationId },
         ],
@@ -152,7 +165,7 @@ export const quotationApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isQuotation),
         }),
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/evaluate'),
-        invalidatesTags: (_result, _error, id) => ['QuotationList', { type: 'Quotation', id }],
+        invalidatesTags: (_result, _error, id) => ['QuotationList', 'Dashboard', { type: 'Quotation', id }],
       }),
       getRecommendations: builder.query<Recommendation[], number>({
         query: (id) => ({
@@ -180,8 +193,10 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/submit'),
         invalidatesTags: (_result, _error, id) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id },
           { type: 'Recommendation', id },
+          'Inventory',
         ],
       }),
       assignQuotation: builder.mutation<Quotation, { quotationId: number; salesRepId: number }>({
@@ -194,6 +209,7 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'PATCH /api/quotations/{id}/assignee'),
         invalidatesTags: (_result, _error, { quotationId }) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id: quotationId },
         ],
       }),
@@ -206,8 +222,10 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/reopen'),
         invalidatesTags: (_result, _error, id) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id },
           { type: 'Recommendation', id },
+          'Inventory',
         ],
       }),
       negotiateQuotation: builder.mutation<Quotation, number>({
@@ -217,7 +235,7 @@ export const quotationApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isQuotation),
         }),
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/negotiate'),
-        invalidatesTags: (_result, _error, id) => ['QuotationList', { type: 'Quotation', id }],
+        invalidatesTags: (_result, _error, id) => ['QuotationList', 'Dashboard', { type: 'Quotation', id }, 'Inventory'],
       }),
       approveQuotation: builder.mutation<Quotation, number>({
         query: (id) => ({
@@ -226,7 +244,28 @@ export const quotationApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isQuotation),
         }),
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/approve'),
-        invalidatesTags: (_result, _error, id) => ['QuotationList', { type: 'Quotation', id }, 'QuoteRequestList', 'CustomerQuotation'],
+        invalidatesTags: (_result, _error, id) => [
+          'QuotationList',
+          { type: 'Quotation', id },
+          'QuoteRequestList',
+          'CustomerQuotation',
+          'Inventory',
+        ],
+      }),
+      cancelQuotation: builder.mutation<Quotation, number>({
+        query: (id) => ({
+          url: `/api/quotations/${id}/cancel`,
+          method: 'POST',
+          validateStatus: (_response, json) => isApiResponse(json, isQuotation),
+        }),
+        transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/cancel'),
+        invalidatesTags: (_result, _error, id) => [
+          'QuotationList',
+          'Dashboard',
+          { type: 'Quotation', id },
+          'QuoteRequestList',
+          'CustomerQuotation',
+        ],
       }),
       returnQuotationToQueue: builder.mutation<Quotation, number>({
         query: (id) => ({
@@ -237,6 +276,7 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/return-to-queue'),
         invalidatesTags: (_result, _error, id) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id },
           'QuoteRequestList',
           'CustomerQuotation',
@@ -251,9 +291,11 @@ export const quotationApi = baseApi
         transformResponse: unwrap(isQuotation, 'POST /api/quotations/{id}/return-to-pending'),
         invalidatesTags: (_result, _error, id) => [
           'QuotationList',
+          'Dashboard',
           { type: 'Quotation', id },
           'QuoteRequestList',
           'CustomerQuotation',
+          'Inventory',
         ],
       }),
     }),
@@ -261,6 +303,7 @@ export const quotationApi = baseApi
 
 export const {
   useGetCustomersQuery,
+  usePatchCustomerTierMutation,
   useGetQuotationsQuery,
   useGetSalesUsersQuery,
   useGetQuotationQuery,
@@ -279,4 +322,5 @@ export const {
   useApproveQuotationMutation,
   useReturnQuotationToQueueMutation,
   useReturnQuotationToPendingMutation,
+  useCancelQuotationMutation,
 } = quotationApi

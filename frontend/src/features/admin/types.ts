@@ -49,6 +49,14 @@ export type CustomerTier = {
   updatedAt: string
 }
 
+export type StandingRule = {
+  id: number
+  companyId: number
+  silverMinSpend: number
+  goldMinSpend: number
+  windowMonths: number
+}
+
 export type PriceListItem = {
   priceListId: number
   productId: number
@@ -191,6 +199,19 @@ export function isCustomerTier(value: unknown): value is CustomerTier {
     typeof value.active === 'boolean' &&
     isIso(value.createdAt) &&
     isIso(value.updatedAt)
+  )
+}
+
+export function isStandingRule(value: unknown): value is StandingRule {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    isNumber(value.id) &&
+    isNumber(value.companyId) &&
+    isNumber(value.silverMinSpend) &&
+    isNumber(value.goldMinSpend) &&
+    isNumber(value.windowMonths)
   )
 }
 

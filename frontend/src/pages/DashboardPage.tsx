@@ -150,8 +150,11 @@ function iconForKpi(label: string) {
   return 'doc'
 }
 
-function iconForActivity(title: string) {
-  const text = title.toLowerCase()
+function iconForActivity(title: string, subtitle: string) {
+  const text = `${title} ${subtitle}`.toLowerCase()
+  if (text.includes('category') || title.toLowerCase().endsWith(' added')) {
+    return 'grid'
+  }
   if (text.includes('pending') || text.includes('negotiation')) {
     return 'clock'
   }
@@ -164,7 +167,13 @@ function iconForActivity(title: string) {
   if (text.includes('customer')) {
     return 'people'
   }
-  if (text.includes('draft')) {
+  if (text.includes('plan')) {
+    return 'grid'
+  }
+  if (text.includes('request') || text.includes('converted') || text.includes('submitted')) {
+    return 'send'
+  }
+  if (text.includes('created') || text.includes('updated')) {
     return 'doc'
   }
   return 'send'
@@ -205,7 +214,7 @@ export function DashboardPage() {
       {query.isError ? <p className="error">Could not load dashboard.</p> : null}
       {dash ? (
         <div className="dash-shell">
-          <div className="dash-main">
+          <div className={dash.tableTitle ? 'dash-main dash-main-table' : 'dash-main'}>
             <div className="dash-hero">
               <div>
                 <h2 className="dash-hello">{dash.greeting}</h2>
@@ -269,10 +278,10 @@ export function DashboardPage() {
                 {dash.activity.length === 0 ? <p className="muted">Nothing yet.</p> : null}
                 <ul className="dash-activity">
                   {dash.activity.map((item) => (
-                    <li key={`${item.href}-${item.at}`}>
+                    <li key={`${item.title}-${item.href}-${item.at}`}>
                       <button type="button" onClick={() => navigate(item.href)}>
                         <span className={`dash-ico dash-ico-sm dash-ico-${activityTone(item.title)}`}>
-                          <Icon name={iconForActivity(item.title)} />
+                          <Icon name={iconForActivity(item.title, item.subtitle)} />
                         </span>
                         <span className="dash-activity-copy">
                           <strong>{item.title}</strong>
@@ -286,44 +295,48 @@ export function DashboardPage() {
               </section>
             </div>
 
-            <section className="panel dash-panel dash-table">
-              <div className="panel-head">
-                <h2>{dash.tableTitle}</h2>
-                <Link className="link" to={dash.primaryCtaHref}>
-                  View all
-                </Link>
-              </div>
-              {dash.table.length === 0 ? <p className="muted">No rows yet.</p> : null}
-              {dash.table.length > 0 ? (
-                <table className="board-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Name</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                      <th>Last updated</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dash.table.map((row) => (
-                      <tr key={row.href + row.idLabel} className="board-row" onClick={() => navigate(row.href)}>
-                        <td>{row.idLabel}</td>
-                        <td>
-                          <span className="table-primary">{row.primary}</span>
-                          <div className="table-secondary">{row.secondary}</div>
-                        </td>
-                        <td>{row.amount}</td>
-                        <td>
-                          <StatusBadge label={row.status} tone={toneForQuotationStatus(row.status)} />
-                        </td>
-                        <td>{ago(row.updatedAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : null}
-            </section>
+            {dash.tableTitle ? (
+              <section className="panel dash-panel dash-table">
+                <div className="panel-head">
+                  <h2>{dash.tableTitle}</h2>
+                  <Link className="link" to={dash.primaryCtaHref}>
+                    View all
+                  </Link>
+                </div>
+                {dash.table.length === 0 ? <p className="muted">No quotations yet.</p> : null}
+                {dash.table.length > 0 ? (
+                  <div className="dash-table-scroll">
+                    <table className="board-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Name</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Last updated</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dash.table.map((row) => (
+                          <tr key={row.href + row.idLabel} className="board-row" onClick={() => navigate(row.href)}>
+                            <td>{row.idLabel}</td>
+                            <td>
+                              <span className="table-primary">{row.primary}</span>
+                              <div className="table-secondary">{row.secondary}</div>
+                            </td>
+                            <td>{row.amount}</td>
+                            <td>
+                              <StatusBadge label={row.status} tone={toneForQuotationStatus(row.status)} />
+                            </td>
+                            <td>{ago(row.updatedAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
           </div>
 
           <aside className="dash-rail">

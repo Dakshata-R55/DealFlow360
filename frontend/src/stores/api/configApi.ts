@@ -9,6 +9,7 @@ import {
   isPriceListItem,
   isProduct,
   isProductVariant,
+  isStandingRule,
   isSubscriptionPlan,
   isUpsellRule,
   isWarehouse,
@@ -24,6 +25,7 @@ import {
   type PriceListItem,
   type Product,
   type ProductVariant,
+  type StandingRule,
   type SubscriptionPlan,
   type UpsellRule,
   type Warehouse,
@@ -139,6 +141,12 @@ export type UpsellRuleBody = {
   active?: boolean
 }
 
+export type StandingRuleBody = {
+  silverMinSpend: number
+  goldMinSpend: number
+  windowMonths?: number
+}
+
 export const configApi = baseApi
   .enhanceEndpoints({
     addTagTypes: [
@@ -152,6 +160,8 @@ export const configApi = baseApi
       'Inventory',
       'SubscriptionPlan',
       'UpsellRule',
+      'StandingRule',
+      'Dashboard',
     ],
   })
   .injectEndpoints({
@@ -172,7 +182,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isCategory),
         }),
         transformResponse: unwrap(isCategory, 'POST /api/categories'),
-        invalidatesTags: ['Category'],
+        invalidatesTags: ['Category', 'Dashboard'],
       }),
       updateCategory: builder.mutation<Category, { id: number; body: CategoryBody }>({
         query: ({ id, body }) => ({
@@ -182,7 +192,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isCategory),
         }),
         transformResponse: unwrap(isCategory, 'PATCH /api/categories'),
-        invalidatesTags: ['Category'],
+        invalidatesTags: ['Category', 'Dashboard'],
       }),
       getProducts: builder.query<Product[], void>({
         query: () => ({
@@ -208,7 +218,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isProduct),
         }),
         transformResponse: unwrap(isProduct, 'POST /api/products'),
-        invalidatesTags: ['Product'],
+        invalidatesTags: ['Product', 'Dashboard'],
       }),
       updateProduct: builder.mutation<Product, { id: number; body: PatchProductBody }>({
         query: ({ id, body }) => ({
@@ -218,7 +228,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isProduct),
         }),
         transformResponse: unwrap(isProduct, 'PATCH /api/products'),
-        invalidatesTags: (_result, _error, { id }) => ['Product', { type: 'Product', id }],
+        invalidatesTags: (_result, _error, { id }) => ['Product', { type: 'Product', id }, 'Dashboard'],
       }),
       createVariant: builder.mutation<ProductVariant, { productId: number; body: VariantBody }>({
         query: ({ productId, body }) => ({
@@ -277,7 +287,17 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isPriceList),
         }),
         transformResponse: unwrap(isPriceList, 'POST /api/price-lists'),
-        invalidatesTags: ['PriceList'],
+        invalidatesTags: ['PriceList', 'Dashboard'],
+      }),
+      updatePriceList: builder.mutation<PriceList, { id: number; body: PriceListBody }>({
+        query: ({ id, body }) => ({
+          url: `/api/price-lists/${id}`,
+          method: 'PATCH',
+          body,
+          validateStatus: (_response, json) => isApiResponse(json, isPriceList),
+        }),
+        transformResponse: unwrap(isPriceList, 'PATCH /api/price-lists'),
+        invalidatesTags: ['PriceList', 'Dashboard'],
       }),
       upsertPriceListItem: builder.mutation<
         PriceListItem,
@@ -344,7 +364,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isWarehouse),
         }),
         transformResponse: unwrap(isWarehouse, 'POST /api/warehouses'),
-        invalidatesTags: ['Warehouse'],
+        invalidatesTags: ['Warehouse', 'Dashboard'],
       }),
       getWarehouseInventory: builder.query<Inventory[], number>({
         query: (id) => ({
@@ -383,7 +403,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isSubscriptionPlan),
         }),
         transformResponse: unwrap(isSubscriptionPlan, 'POST /api/subscription-plans'),
-        invalidatesTags: ['SubscriptionPlan'],
+        invalidatesTags: ['SubscriptionPlan', 'Dashboard'],
       }),
       updateSubscriptionPlan: builder.mutation<SubscriptionPlan, { id: number; body: SubscriptionPlanBody }>({
         query: ({ id, body }) => ({
@@ -393,7 +413,7 @@ export const configApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isSubscriptionPlan),
         }),
         transformResponse: unwrap(isSubscriptionPlan, 'PATCH /api/subscription-plans'),
-        invalidatesTags: ['SubscriptionPlan'],
+        invalidatesTags: ['SubscriptionPlan', 'Dashboard'],
       }),
       getUpsellRules: builder.query<UpsellRule[], void>({
         query: () => ({
@@ -413,6 +433,24 @@ export const configApi = baseApi
         transformResponse: unwrap(isUpsellRule, 'POST /api/upsell-rules'),
         invalidatesTags: ['UpsellRule'],
       }),
+      getStandingRules: builder.query<StandingRule, void>({
+        query: () => ({
+          url: '/api/standing-rules',
+          validateStatus: (_response, json) => isApiResponse(json, isStandingRule),
+        }),
+        transformResponse: unwrap(isStandingRule, 'GET /api/standing-rules'),
+        providesTags: ['StandingRule'],
+      }),
+      replaceStandingRules: builder.mutation<StandingRule, StandingRuleBody>({
+        query: (body) => ({
+          url: '/api/standing-rules',
+          method: 'PUT',
+          body,
+          validateStatus: (_response, json) => isApiResponse(json, isStandingRule),
+        }),
+        transformResponse: unwrap(isStandingRule, 'PUT /api/standing-rules'),
+        invalidatesTags: ['StandingRule'],
+      }),
     }),
   })
 
@@ -430,6 +468,7 @@ export const {
   useCreateCustomerTierMutation,
   useGetPriceListsQuery,
   useCreatePriceListMutation,
+  useUpdatePriceListMutation,
   useUpsertPriceListItemMutation,
   useGetDiscountPolicyQuery,
   useReplaceDiscountPolicyMutation,
@@ -444,4 +483,6 @@ export const {
   useUpdateSubscriptionPlanMutation,
   useGetUpsellRulesQuery,
   useCreateUpsellRuleMutation,
+  useGetStandingRulesQuery,
+  useReplaceStandingRulesMutation,
 } = configApi

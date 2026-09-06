@@ -100,7 +100,7 @@ export function CustomerQuotationPanel({ quotationId }: { quotationId: number })
           <p>
             {rupee(line.unitPrice)} each · qty {line.quantity} · {percentLabel(line.discountPercent)} off
           </p>
-          <p>Line {rupee(line.lineTotal)}</p>
+          <p>Product {rupee(line.lineTotal)}</p>
           {quote.status === 'NEGOTIATION' ? (
             <label className="field">
               Counter discount %

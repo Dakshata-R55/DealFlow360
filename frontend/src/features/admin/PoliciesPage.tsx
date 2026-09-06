@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Modal } from '../../components/common/Modal'
 import { Panel } from '../../components/common/Panel'
 import {
@@ -7,9 +7,12 @@ import {
   useGetCategoriesQuery,
   useGetCustomerTiersQuery,
   useGetDiscountPolicyQuery,
+  useGetStandingRulesQuery,
   useReplaceApprovalPolicyMutation,
   useReplaceDiscountPolicyMutation,
+  useReplaceStandingRulesMutation,
 } from '../../stores/api/configApi'
+import { useGetCustomersQuery, usePatchCustomerTierMutation } from '../../stores/api/quotationApi'
 import { apiErrorMessage } from '../../types/api'
 type PolicyModal = 'standing-add' | 'standing-edit' | 'category' | 'approval' | null
 
@@ -24,9 +27,13 @@ export function PoliciesPage() {
   const categoriesQuery = useGetCategoriesQuery()
   const discountQuery = useGetDiscountPolicyQuery()
   const approvalQuery = useGetApprovalPolicyQuery()
+  const standingQuery = useGetStandingRulesQuery()
+  const customersQuery = useGetCustomersQuery()
   const [createTier, createTierState] = useCreateCustomerTierMutation()
   const [replaceDiscount, replaceDiscountState] = useReplaceDiscountPolicyMutation()
   const [replaceApproval, replaceApprovalState] = useReplaceApprovalPolicyMutation()
+  const [replaceStanding, replaceStandingState] = useReplaceStandingRulesMutation()
+  const [patchTier, patchTierState] = usePatchCustomerTierMutation()
   const [modal, setModal] = useState<PolicyModal>(null)
   const [error, setError] = useState<string | null>(null)
   const [tierName, setTierName] = useState('')
@@ -34,12 +41,27 @@ export function PoliciesPage() {
   const [editStandingId, setEditStandingId] = useState<number | null>(null)
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [categoryLimit, setCategoryLimit] = useState('')
+  const [silverMin, setSilverMin] = useState('')
+  const [goldMin, setGoldMin] = useState('')
+  const [windowMonths, setWindowMonths] = useState('6')
+  const [customerQuery, setCustomerQuery] = useState('')
 
   const approval = approvalQuery.data
   const tiers = tiersQuery.data ?? []
   const categories = categoriesQuery.data ?? []
   const policies = discountQuery.data ?? []
+  const customers = customersQuery.data ?? []
+  const standing = standingQuery.data
   const selectedCategory = categories.find((row) => row.id === categoryId) ?? categories[0] ?? null
+
+  useEffect(() => {
+    if (!standing) {
+      return
+    }
+    setSilverMin(String(standing.silverMinSpend))
+    setGoldMin(String(standing.goldMinSpend))
+    setWindowMonths(String(standing.windowMonths))
+  }, [standing])
 
   function closeModal() {
     setModal(null)
@@ -133,6 +155,20 @@ export function PoliciesPage() {
     }
   }
 
+  async function onSaveSpend(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    try {
+      await replaceStanding({
+        silverMinSpend: Number(silverMin),
+        goldMinSpend: Number(goldMin),
+        windowMonths: Number(windowMonths),
+      }).unwrap()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save spend rules'))
+    }
+  }
+
   async function onSaveApproval(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
@@ -163,43 +199,157 @@ export function PoliciesPage() {
           </button>
         }
       >
-        <p className="muted">How far a sales rep may discount for this customer standing. Extra currencies are added on Catalog.</p>
+        <p className="muted">
+          Discount ceilings by standing. Confirmed spend in the lookback window can raise standing — it never drops
+          on its own.
+        </p>
+        {modal == null && error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <form className="standing-rules-inline" onSubmit={(event) => void onSaveSpend(event)}>
+          <label className="field">
+            Lookback (months)
+            <input
+              className="input"
+              type="number"
+              min="1"
+              max="24"
+              step="1"
+              value={windowMonths}
+              onChange={(event) => setWindowMonths(event.target.value)}
+              required
+            />
+          </label>
+          <label className="field">
+            Silver from (₹)
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={silverMin}
+              onChange={(event) => setSilverMin(event.target.value)}
+              required
+            />
+          </label>
+          <label className="field">
+            Gold from (₹)
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={goldMin}
+              onChange={(event) => setGoldMin(event.target.value)}
+              required
+            />
+          </label>
+          <button className="button" type="submit" disabled={replaceStandingState.isLoading}>
+            {replaceStandingState.isLoading ? 'Saving…' : 'Save rules'}
+          </button>
+        </form>
         {tiersQuery.isLoading ? <p className="muted">Loading standing…</p> : null}
         {tiers.length > 0 ? (
-          <table className="board-table">
-            <thead>
-              <tr>
-                <th>Standing</th>
-                <th>Discount ceiling</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {tiers.map((tier) => (
-                <tr key={tier.id}>
-                  <td>
-                    <span className="table-primary">{tier.name}</span>
-                  </td>
-                  <td>{ceilingForStanding(tier.id, tier.defaultDiscountLimit)}%</td>
-                  <td>
-                    <button
-                      className="button button-secondary"
-                      type="button"
-                      onClick={() => {
-                        setEditStandingId(tier.id)
-                        setTierLimit(String(ceilingForStanding(tier.id, tier.defaultDiscountLimit)))
-                        setModal('standing-edit')
-                      }}
-                    >
-                      Edit
-                    </button>
-                  </td>
+          <div className="policy-list-scroll">
+            <table className="board-table">
+              <thead>
+                <tr>
+                  <th>Standing</th>
+                  <th>Discount ceiling</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {tiers.map((tier) => (
+                  <tr key={tier.id}>
+                    <td>
+                      <span className="table-primary">{tier.name}</span>
+                    </td>
+                    <td>{ceilingForStanding(tier.id, tier.defaultDiscountLimit)}%</td>
+                    <td>
+                      <button
+                        className="button button-secondary"
+                        type="button"
+                        onClick={() => {
+                          setEditStandingId(tier.id)
+                          setTierLimit(String(ceilingForStanding(tier.id, tier.defaultDiscountLimit)))
+                          setModal('standing-edit')
+                        }}
+                      >
+                        Ceiling
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : tiersQuery.isSuccess ? (
           <p className="muted">No standing yet.</p>
+        ) : null}
+      </Panel>
+
+      <Panel title="Customers">
+        <p className="muted">
+          CRM accounts and portal buyers who requested or bought from this company. Assign standing here; managers
+          can also change it on an open quote.
+        </p>
+        {customersQuery.isLoading ? <p className="muted">Loading customers…</p> : null}
+        {customers.length === 0 && customersQuery.isSuccess ? <p className="muted">No customers yet.</p> : null}
+        {customers.length > 0 ? (
+          <div className="policy-customers">
+            <label className="field policy-customer-search">
+              <input
+                className="input"
+                value={customerQuery}
+                onChange={(event) => setCustomerQuery(event.target.value)}
+                placeholder={`Search ${customers.length} customers`}
+                aria-label="Find customer"
+              />
+            </label>
+            <div className="policy-list-scroll">
+              <table className="board-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Standing</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers
+                    .filter((customer) =>
+                      customer.name.toLowerCase().includes(customerQuery.trim().toLowerCase()),
+                    )
+                    .map((customer) => (
+                      <tr key={customer.id}>
+                        <td>
+                          <span className="table-primary">{customer.name}</span>
+                          <div className="table-secondary">{customer.portal ? 'Portal' : 'Account'}</div>
+                        </td>
+                        <td>
+                          <select
+                            className="input"
+                            value={customer.customerTierId}
+                            disabled={patchTierState.isLoading}
+                            onChange={(event) => {
+                              void patchTier({ id: customer.id, customerTierId: Number(event.target.value) })
+                            }}
+                          >
+                            {tiers.map((tier) => (
+                              <option key={tier.id} value={tier.id}>
+                                {tier.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : null}
       </Panel>
 

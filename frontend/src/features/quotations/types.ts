@@ -16,6 +16,8 @@ export type Customer = {
   id: number
   name: string
   customerTierId: number
+  customerTierName: string
+  portal?: boolean
   active: boolean
   createdAt: string
   updatedAt: string
@@ -116,6 +118,7 @@ export function isCustomer(value: unknown): value is Customer {
     isNumber(value.id) &&
     typeof value.name === 'string' &&
     isNumber(value.customerTierId) &&
+    typeof value.customerTierName === 'string' &&
     typeof value.active === 'boolean' &&
     isIso(value.createdAt) &&
     isIso(value.updatedAt)
@@ -282,6 +285,16 @@ export type StatusOption = {
   label: string
 }
 
+function approvalOptions(role: string | undefined, riskLevel: RiskLevel): StatusOption[] {
+  if (riskLevel === 'HIGH') {
+    return role === 'FINANCE_OPS' ? [{ action: 'approve', label: 'Approve' }] : []
+  }
+  if (role === 'SALES_MANAGER' || role === 'FINANCE_OPS') {
+    return [{ action: 'approve', label: 'Approve' }]
+  }
+  return []
+}
+
 export function legalStatusOptions(args: {
   status: QuotationStatus
   canSubmit: boolean
@@ -290,7 +303,7 @@ export function legalStatusOptions(args: {
   managerApprovedAt: string | null
   hasSourceRequest?: boolean
 }): StatusOption[] {
-  const { status, canSubmit, role, riskLevel, managerApprovedAt, hasSourceRequest } = args
+  const { status, canSubmit, role, riskLevel, hasSourceRequest } = args
   const isApprover = role === 'SALES_MANAGER' || role === 'FINANCE_OPS'
   if (status === 'DRAFT') {
     const options: StatusOption[] = []
@@ -310,12 +323,7 @@ export function legalStatusOptions(args: {
     if (isApprover) {
       options.push({ action: 'negotiate', label: 'Negotiation' })
     }
-    if (role === 'SALES_MANAGER' && !managerApprovedAt) {
-      options.push({ action: 'approve', label: riskLevel === 'HIGH' ? 'Stamp for Finance' : 'Approve' })
-    }
-    if (role === 'FINANCE_OPS' && riskLevel === 'HIGH' && managerApprovedAt) {
-      options.push({ action: 'approve', label: 'Approve' })
-    }
+    options.push(...approvalOptions(role, riskLevel))
     return options
   }
   if (status === 'APPROVED') {
@@ -335,15 +343,31 @@ export function legalStatusOptions(args: {
       options.push({ action: 'reopen', label: 'Draft' })
       options.push({ action: 'returnToPending', label: 'Pending Approval' })
     }
-    if (isApprover) {
-      options.push({ action: 'approve', label: 'Approve' })
-    }
+    options.push(...approvalOptions(role, riskLevel))
     return options
   }
   return []
 }
 
 export type SellerBoardColumn = 'TODO' | QuotationStatus
+
+export function blockedDropReason(
+  toColumn: SellerBoardColumn,
+  quote: {
+    status: QuotationStatus
+    riskLevel: RiskLevel
+    managerApprovedAt: string | null
+  },
+  role: string | undefined,
+): string {
+  if (toColumn === 'CONFIRMED') {
+    return 'The customer confirms on credit from their portal.'
+  }
+  if (toColumn === 'APPROVED' && quote.riskLevel === 'HIGH' && role !== 'FINANCE_OPS') {
+    return 'Finance must approve high-risk quotes. Manager can send this to Negotiation or back.'
+  }
+  return `Cannot move this ticket to ${toColumn === 'TODO' ? 'To do' : statusLabel(toColumn)}`
+}
 
 export function quoteDropAction(
   fromStatus: QuotationStatus,
@@ -376,9 +400,6 @@ export function quoteDropAction(
   }
   const option = options.find((item) => item.action === action)
   if (!option) {
-    return null
-  }
-  if (action === 'approve' && option.label !== 'Approve') {
     return null
   }
   return action

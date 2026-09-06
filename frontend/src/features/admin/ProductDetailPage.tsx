@@ -157,13 +157,11 @@ export function ProductDetailPage() {
   const pairings = (upsellQuery.data ?? []).filter((rule) => rule.triggerProductId === productId)
   const priceLists = priceListsQuery.data ?? []
   const tiers = tiersQuery.data ?? []
-  const overrides = priceLists.flatMap((list) => {
+  const listRows = priceLists.map((list) => {
     const item = list.items.find((row) => row.productId === productId)
-    if (!item) {
-      return []
-    }
-    return [{ list, item }]
+    return { list, item }
   })
+  const customCount = listRows.filter((row) => row.item).length
 
   function productName(id: number) {
     return productsQuery.data?.find((row) => row.id === id)?.name ?? `Product ${id}`
@@ -248,44 +246,52 @@ export function ProductDetailPage() {
       </Panel>
 
       <Panel
-        title="Price list override"
+        title="Standing prices"
         badge={
           priceLists.length > 0 ? (
             <button className="button" type="button" onClick={() => setModal('override')}>
-              Save override
+              Set price
             </button>
           ) : null
         }
       >
-        <p className="muted">
-          Each customer tier has a price list (Bronze, Silver, Gold, Platinum if you added them). Override is
-          this product’s special price on that list. No row means the quote uses selling price ({product.basePrice}).
-          Extra currencies still come from{' '}
+        <p className="muted product-price-hint">
+          Selling {product.basePrice} unless a tier has a custom price.{' '}
           <Link className="link" to="/admin/catalog">
-            Catalog
+            Lists
           </Link>
-          .
+          {customCount > 0 ? ` · ${customCount} custom` : null}
         </p>
         {priceListsQuery.isLoading ? <p className="muted">Loading price lists…</p> : null}
         {priceLists.length === 0 ? (
-          <p className="muted">No price lists yet. Create one from a customer tier on Catalog.</p>
-        ) : null}
-        {overrides.length === 0 && priceLists.length > 0 ? (
-          <p className="muted">No override for this product yet. Every tier currently pays {product.basePrice}.</p>
-        ) : null}
-        {overrides.length > 0 ? (
-          <ul>
-            {overrides.map(({ list, item }) => (
-              <li key={list.id}>
-                {list.name}
-                <span className="muted">
-                  {' '}
-                  · {tierName(list.customerTierId)} · {list.currency} · {item.price} (selling {product.basePrice})
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+          <p className="muted">No lists yet. Add one on Catalog from a customer standing.</p>
+        ) : (
+          <div className="tier-price-grid">
+            {listRows.map(({ list, item }) => {
+              const custom = item != null
+              return (
+                <button
+                  key={list.id}
+                  className={custom ? 'tier-price tier-price-custom' : 'tier-price'}
+                  type="button"
+                  onClick={() => {
+                    onSelectPriceList(String(list.id))
+                    setModal('override')
+                  }}
+                >
+                  <span className="tier-price-tier">{tierName(list.customerTierId)}</span>
+                  <strong className="tier-price-amount">{custom ? item.price : product.basePrice}</strong>
+                  <span className="tier-price-meta">
+                    {list.currency}
+                    <span className={custom ? 'tier-price-tag' : 'tier-price-tag muted'}>
+                      {custom ? 'Custom' : 'Selling'}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </Panel>
 
       <Panel
@@ -430,7 +436,7 @@ export function ProductDetailPage() {
       ) : null}
 
       {modal === 'override' ? (
-        <Modal title="Save override" onClose={() => setModal(null)}>
+        <Modal title="Standing price" onClose={() => setModal(null)}>
           <form className="form" onSubmit={onSaveOverride}>
             <label className="field field-full">
               Price list

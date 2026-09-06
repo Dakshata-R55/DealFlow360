@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { useAppSelector } from '../../stores/hooks'
-import { useGetCustomerRequestsQuery } from '../../stores/api/quoteRequestApi'
-import { homeBucket } from './types'
+import { useGetCustomerRequestsQuery, useGetCustomerStandingQuery } from '../../stores/api/quoteRequestApi'
+import { homeBucket, rupee } from './types'
 
 export function CustomerHomePage() {
   const user = useAppSelector((state) => state.auth.user)
   const requests = useGetCustomerRequestsQuery()
+  const standing = useGetCustomerStandingQuery()
   const rows = requests.data ?? []
   const activeCount = rows.filter((row) => homeBucket(row) === 'active').length
   const awaitingCount = rows.filter((row) => homeBucket(row) === 'awaiting').length
@@ -22,6 +23,27 @@ export function CustomerHomePage() {
           </Link>
         </p>
       </section>
+      {(standing.data ?? []).length > 0 ? (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Your standing</h2>
+          </div>
+          <ul>
+            {(standing.data ?? []).map((row) => (
+              <li key={row.sellerCompanyId}>
+                <strong>{row.sellerCompanyName}</strong>
+                {' · '}
+                {row.standingName}
+                {' · '}
+                {rupee(row.spend)} in {row.windowMonths} months
+                {row.nextStanding && row.amountToNext != null
+                  ? ` · ${rupee(row.amountToNext)} more to ${row.nextStanding}`
+                  : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <div className="metric-grid">
         <Link className="metric-card" to="/customer/requests">
           <p className="metric-label">Active requests</p>

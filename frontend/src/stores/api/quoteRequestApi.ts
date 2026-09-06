@@ -3,8 +3,10 @@ import {
   isCustomerQuotationList,
   isQuoteRequest,
   isQuoteRequestList,
+  isStandingProgressList,
   type CustomerQuotation,
   type QuoteRequest,
+  type StandingProgress,
 } from '../../features/requests/types'
 import { isQuotation, type Quotation } from '../../features/quotations/types'
 import { isApiResponse } from '../../types/api'
@@ -21,7 +23,7 @@ function unwrap<T>(isData: (value: unknown) => value is T, label: string) {
 
 export const quoteRequestApi = baseApi
   .enhanceEndpoints({
-    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuotationList', 'CustomerQuotation', 'Fulfillment', 'FulfillmentList', 'Inventory'],
+    addTagTypes: ['QuoteRequest', 'QuoteRequestList', 'QuotationList', 'CustomerQuotation', 'Fulfillment', 'FulfillmentList', 'Inventory', 'CustomerStanding', 'Dashboard'],
   })
   .injectEndpoints({
     endpoints: (builder) => ({
@@ -158,7 +160,7 @@ export const quoteRequestApi = baseApi
           validateStatus: (_response, json) => isApiResponse(json, isQuotation),
         }),
         transformResponse: unwrap(isQuotation, 'POST /api/requests/{id}/convert-to-quotation'),
-        invalidatesTags: ['QuoteRequestList', 'QuotationList', 'CustomerQuotation'],
+        invalidatesTags: ['QuoteRequestList', 'QuotationList', 'CustomerQuotation', 'Dashboard'],
       }),
       getCustomerQuotations: builder.query<CustomerQuotation[], void>({
         query: () => ({
@@ -192,6 +194,7 @@ export const quoteRequestApi = baseApi
           { type: 'CustomerQuotation', id },
           'QuoteRequestList',
           'QuotationList',
+          'Dashboard',
         ],
       }),
       confirmCustomerCredit: builder.mutation<CustomerQuotation, number>({
@@ -206,10 +209,20 @@ export const quoteRequestApi = baseApi
           { type: 'CustomerQuotation', id },
           'QuoteRequestList',
           'QuotationList',
+          'Dashboard',
           'FulfillmentList',
           { type: 'Fulfillment', id },
           'Inventory',
+          'CustomerStanding',
         ],
+      }),
+      getCustomerStanding: builder.query<StandingProgress[], void>({
+        query: () => ({
+          url: '/api/customer/standing',
+          validateStatus: (_response, json) => isApiResponse(json, isStandingProgressList),
+        }),
+        transformResponse: unwrap(isStandingProgressList, 'GET /api/customer/standing'),
+        providesTags: ['CustomerStanding'],
       }),
     }),
   })
@@ -232,4 +245,5 @@ export const {
   useGetCustomerQuotationQuery,
   useCounterCustomerQuotationMutation,
   useConfirmCustomerCreditMutation,
+  useGetCustomerStandingQuery,
 } = quoteRequestApi

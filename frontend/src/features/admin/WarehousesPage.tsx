@@ -67,12 +67,13 @@ export function WarehousesPage() {
     }
     setError(null)
     try {
+      const existing = (inventoryQuery.data ?? []).find((row) => row.productId === Number(productId))
       await upsertInventory({
         warehouseId: activeId,
         productId: Number(productId),
         body: {
           onHand: Number(onHand),
-          reserved: 0,
+          reserved: existing?.reserved ?? 0,
           minStock: Number(minStock),
           reorderQty: Number(reorderQty),
         },
@@ -80,6 +81,33 @@ export function WarehousesPage() {
       closeModal()
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save stock'))
+    }
+  }
+
+  async function restock(row: {
+    productId: number
+    onHand: number
+    reserved: number
+    minStock: number
+    reorderQty: number
+  }) {
+    if (activeId == null || row.reorderQty <= 0) {
+      return
+    }
+    setError(null)
+    try {
+      await upsertInventory({
+        warehouseId: activeId,
+        productId: row.productId,
+        body: {
+          onHand: row.onHand + row.reorderQty,
+          reserved: row.reserved,
+          minStock: row.minStock,
+          reorderQty: row.reorderQty,
+        },
+      }).unwrap()
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not restock'))
     }
   }
 
@@ -139,6 +167,11 @@ export function WarehousesPage() {
         }
       >
         {activeId == null ? <p className="muted">Create a warehouse first.</p> : null}
+        {error && modal == null ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : null}
         {inventoryQuery.isFetching ? <p className="muted">Loading stock…</p> : null}
         {activeId != null && (inventoryQuery.data ?? []).length > 0 ? (
           <table className="board-table">
@@ -150,6 +183,7 @@ export function WarehousesPage() {
                 <th>Available</th>
                 <th>Min</th>
                 <th>Reorder</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -163,6 +197,16 @@ export function WarehousesPage() {
                   <td>{row.available}</td>
                   <td>{row.minStock}</td>
                   <td>{row.reorderQty}</td>
+                  <td>
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={row.reorderQty <= 0 || upsertInventoryState.isLoading}
+                      onClick={() => void restock(row)}
+                    >
+                      Restock
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

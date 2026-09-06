@@ -327,3 +327,34 @@ export function isCustomerQuotation(value: unknown): value is CustomerQuotation 
 }
 
 export const isCustomerQuotationList = isListOf(isCustomerQuotation)
+
+export type StandingProgress = {
+  sellerCompanyId: number
+  sellerCompanyName: string
+  standingName: string
+  spend: number
+  windowMonths: number
+  silverMinSpend: number
+  goldMinSpend: number
+  nextStanding: string | null
+  amountToNext: number | null
+}
+
+export function isStandingProgress(value: unknown): value is StandingProgress {
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    isNumber(value.sellerCompanyId) &&
+    typeof value.sellerCompanyName === 'string' &&
+    typeof value.standingName === 'string' &&
+    isNumber(value.spend) &&
+    isNumber(value.windowMonths) &&
+    isNumber(value.silverMinSpend) &&
+    isNumber(value.goldMinSpend) &&
+    (value.nextStanding === null || typeof value.nextStanding === 'string') &&
+    (value.amountToNext === null || isNumber(value.amountToNext))
+  )
+}
+
+export const isStandingProgressList = isListOf(isStandingProgress)

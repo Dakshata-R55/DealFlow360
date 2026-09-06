@@ -11,7 +11,11 @@ function unwrap<T>(isData: (value: unknown) => value is T, label: string) {
   }
 }
 
-export const dashboardApi = baseApi.injectEndpoints({
+export const dashboardApi = baseApi
+  .enhanceEndpoints({
+    addTagTypes: ['Dashboard'],
+  })
+  .injectEndpoints({
   endpoints: (builder) => ({
     getDashboard: builder.query<Dashboard, void>({
       query: () => ({
@@ -19,6 +23,7 @@ export const dashboardApi = baseApi.injectEndpoints({
         validateStatus: (_response, json) => isApiResponse(json, isDashboard),
       }),
       transformResponse: unwrap(isDashboard, 'GET /api/dashboard'),
+      providesTags: ['Dashboard'],
     }),
     searchCompany: builder.query<SearchHit[], string>({
       query: (q) => ({

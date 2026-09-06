@@ -19,7 +19,7 @@ export function Drawer({ onClose, children }: { onClose: () => void; children: R
             Close
           </button>
         </div>
-        {children}
+        <div className="drawer-body">{children}</div>
       </aside>
     </div>
   )
