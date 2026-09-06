@@ -21,6 +21,7 @@ import com.dealflow360.quoterequest.repository.QuoteRequestRepository;
 import com.dealflow360.shared.exception.BadRequestException;
 import com.dealflow360.shared.exception.ConflictException;
 import com.dealflow360.shared.exception.NotFoundException;
+import com.dealflow360.standing.service.StandingService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,7 @@ public class CustomerQuotationService {
     private final ProductRepository productRepository;
     private final CompanyRepository companyRepository;
     private final FulfillmentService fulfillmentService;
+    private final StandingService standingService;
 
     public CustomerQuotationService(
             QuoteRequestRepository quoteRequestRepository,
@@ -47,7 +49,8 @@ public class CustomerQuotationService {
             QuotationLineRepository quotationLineRepository,
             ProductRepository productRepository,
             CompanyRepository companyRepository,
-            FulfillmentService fulfillmentService) {
+            FulfillmentService fulfillmentService,
+            StandingService standingService) {
         this.quoteRequestRepository = quoteRequestRepository;
         this.quoteRequestLineRepository = quoteRequestLineRepository;
         this.quotationRepository = quotationRepository;
@@ -55,6 +58,7 @@ public class CustomerQuotationService {
         this.productRepository = productRepository;
         this.companyRepository = companyRepository;
         this.fulfillmentService = fulfillmentService;
+        this.standingService = standingService;
     }
 
     public List<CustomerQuotationResponse> list(long customerUserId) {
@@ -96,13 +100,6 @@ public class CustomerQuotationService {
             }
         }
         quotationRepository.updateApproval(quotationId, owned.request().sellerCompanyId(), null, null);
-        quotationRepository.updateStatus(
-                quotationId,
-                owned.request().sellerCompanyId(),
-                QuotationStatus.PENDING_APPROVAL,
-                owned.quotation().submittedAt(),
-                owned.quotation().riskScore(),
-                owned.quotation().riskLevel());
         return toResponse(owned(customerUserId, quotationId));
     }
 
@@ -119,7 +116,8 @@ public class CustomerQuotationService {
                 owned.quotation().submittedAt(),
                 owned.quotation().riskScore(),
                 owned.quotation().riskLevel());
-        fulfillmentService.planIfAbsent(owned.request().sellerCompanyId(), quotationId);
+        fulfillmentService.takeOnConfirm(owned.request().sellerCompanyId(), quotationId);
+        standingService.evaluateAfterConfirm(owned.request().sellerCompanyId(), owned.quotation().customerId());
         return toResponse(owned(customerUserId, quotationId));
     }
 

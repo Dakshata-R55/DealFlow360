@@ -9,6 +9,7 @@ import com.dealflow360.catalog.repository.ProductRepository;
 import com.dealflow360.catalog.repository.ProductVariantRepository;
 import com.dealflow360.customer.model.Customer;
 import com.dealflow360.customer.repository.CustomerRepository;
+import com.dealflow360.fulfillment.service.FulfillmentService;
 import com.dealflow360.policy.model.RiskLevel;
 import com.dealflow360.pricing.model.CustomerTier;
 import com.dealflow360.pricing.model.PriceList;
@@ -67,6 +68,7 @@ public class QuotationService {
     private final QuoteRequestRepository quoteRequestRepository;
     private final QuoteRequestLineRepository quoteRequestLineRepository;
     private final UserRepository userRepository;
+    private final FulfillmentService fulfillmentService;
 
     public QuotationService(
             QuotationRepository quotationRepository,
@@ -81,7 +83,8 @@ public class QuotationService {
             RecommendationService recommendationService,
             QuoteRequestRepository quoteRequestRepository,
             QuoteRequestLineRepository quoteRequestLineRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            FulfillmentService fulfillmentService) {
         this.quotationRepository = quotationRepository;
         this.lineRepository = lineRepository;
         this.customerRepository = customerRepository;
@@ -95,6 +98,7 @@ public class QuotationService {
         this.quoteRequestRepository = quoteRequestRepository;
         this.quoteRequestLineRepository = quoteRequestLineRepository;
         this.userRepository = userRepository;
+        this.fulfillmentService = fulfillmentService;
     }
 
     public List<SalesUserResponse> listSalesUsers(long companyId) {
@@ -246,6 +250,9 @@ public class QuotationService {
                         evaluated.riskLevel())
                 .orElseThrow(() -> new NotFoundException("Quotation not found"));
         clearApproval(companyId, quotationId);
+        if (next == QuotationStatus.APPROVED) {
+            fulfillmentService.reserveOnApprove(companyId, quotationId);
+        }
         return get(companyId, quotationId);
     }
 
@@ -269,6 +276,9 @@ public class QuotationService {
                 && quotation.status() != QuotationStatus.NEGOTIATION
                 && quotation.status() != QuotationStatus.APPROVED) {
             throw new ConflictException("Only pending approval, negotiation, or approved can return to draft");
+        }
+        if (quotation.status() == QuotationStatus.APPROVED) {
+            fulfillmentService.releaseHold(companyId, quotationId);
         }
         Quotation updated = quotationRepository
                 .updateStatus(
@@ -307,10 +317,31 @@ public class QuotationService {
     }
 
     @Transactional
+    public QuotationResponse cancel(long companyId, long quotationId) {
+        Quotation quotation = requireDraft(companyId, quotationId);
+        if (quoteRequestRepository.findByQuotationId(quotation.id()).isPresent()) {
+            return returnToQueue(companyId, quotationId);
+        }
+        quotationRepository
+                .updateStatus(
+                        quotationId,
+                        companyId,
+                        QuotationStatus.CANCELLED,
+                        quotation.submittedAt(),
+                        quotation.riskScore(),
+                        quotation.riskLevel())
+                .orElseThrow(() -> new NotFoundException("Quotation not found"));
+        return get(companyId, quotationId);
+    }
+
+    @Transactional
     public QuotationResponse returnToPending(long companyId, long quotationId) {
         Quotation quotation = requireQuote(companyId, quotationId);
         if (quotation.status() != QuotationStatus.APPROVED && quotation.status() != QuotationStatus.NEGOTIATION) {
             throw new ConflictException("Only approved or negotiation can return to pending approval");
+        }
+        if (quotation.status() == QuotationStatus.APPROVED) {
+            fulfillmentService.releaseHold(companyId, quotationId);
         }
         quotationRepository
                 .updateStatus(
@@ -331,72 +362,33 @@ public class QuotationService {
             throw new ConflictException("Only Sales Manager or Finance can approve");
         }
         Quotation quotation = requireQuote(companyId, quotationId);
-        if (quotation.status() == QuotationStatus.NEGOTIATION) {
-            Instant now = Instant.now();
-            Instant managerAt = role == UserRole.SALES_MANAGER ? now : quotation.managerApprovedAt();
-            Instant financeAt = role == UserRole.FINANCE_OPS ? now : quotation.financeApprovedAt();
-            quotationRepository.updateApproval(quotationId, companyId, managerAt, financeAt);
-            Quotation approved = quotationRepository
-                    .updateStatus(
-                            quotationId,
-                            companyId,
-                            QuotationStatus.APPROVED,
-                            quotation.submittedAt(),
-                            quotation.riskScore(),
-                            quotation.riskLevel())
-                    .orElseThrow(() -> new NotFoundException("Quotation not found"));
-            return toResponse(companyId, approved, lineRepository.findByQuotation(quotationId));
-        }
-        if (quotation.status() != QuotationStatus.PENDING_APPROVAL) {
+        if (quotation.status() != QuotationStatus.PENDING_APPROVAL
+                && quotation.status() != QuotationStatus.NEGOTIATION) {
             throw new ConflictException("Only a pending or negotiation quotation can be approved");
+        }
+        if (quotation.riskLevel() == RiskLevel.HIGH && role != UserRole.FINANCE_OPS) {
+            throw new ConflictException("Finance must approve high-risk quotes");
         }
         Instant now = Instant.now();
         Instant managerAt = quotation.managerApprovedAt();
         Instant financeAt = quotation.financeApprovedAt();
-        boolean high = quotation.riskLevel() == RiskLevel.HIGH;
         if (role == UserRole.SALES_MANAGER) {
-            if (managerAt != null) {
-                throw new ConflictException("Sales Manager already stamped this quotation");
-            }
             managerAt = now;
-            quotationRepository.updateApproval(quotationId, companyId, managerAt, financeAt);
-            if (!high) {
-                Quotation approved = quotationRepository
-                        .updateStatus(
-                                quotationId,
-                                companyId,
-                                QuotationStatus.APPROVED,
-                                quotation.submittedAt(),
-                                quotation.riskScore(),
-                                quotation.riskLevel())
-                        .orElseThrow(() -> new NotFoundException("Quotation not found"));
-                return toResponse(companyId, approved, lineRepository.findByQuotation(quotationId));
-            }
-            return get(companyId, quotationId);
+        } else {
+            financeAt = now;
         }
-        if (role == UserRole.FINANCE_OPS) {
-            if (!high) {
-                throw new ConflictException("Finance approves only high-risk quotations");
-            }
-            if (managerAt == null) {
-                throw new ConflictException("Sales Manager must stamp this quotation first");
-            }
-            if (financeAt != null) {
-                throw new ConflictException("Finance already stamped this quotation");
-            }
-            quotationRepository.updateApproval(quotationId, companyId, managerAt, now);
-            Quotation approved = quotationRepository
-                    .updateStatus(
-                            quotationId,
-                            companyId,
-                            QuotationStatus.APPROVED,
-                            quotation.submittedAt(),
-                            quotation.riskScore(),
-                            quotation.riskLevel())
-                    .orElseThrow(() -> new NotFoundException("Quotation not found"));
-            return toResponse(companyId, approved, lineRepository.findByQuotation(quotationId));
-        }
-        throw new ConflictException("Only a pending quotation can be approved by this role");
+        quotationRepository.updateApproval(quotationId, companyId, managerAt, financeAt);
+        Quotation approved = quotationRepository
+                .updateStatus(
+                        quotationId,
+                        companyId,
+                        QuotationStatus.APPROVED,
+                        quotation.submittedAt(),
+                        quotation.riskScore(),
+                        quotation.riskLevel())
+                .orElseThrow(() -> new NotFoundException("Quotation not found"));
+        fulfillmentService.reserveOnApprove(companyId, quotationId);
+        return toResponse(companyId, approved, lineRepository.findByQuotation(quotationId));
     }
 
     @Transactional
@@ -407,6 +399,9 @@ public class QuotationService {
         Quotation quotation = requireQuote(companyId, quotationId);
         if (quotation.status() != QuotationStatus.PENDING_APPROVAL && quotation.status() != QuotationStatus.APPROVED) {
             throw new ConflictException("Negotiation is only from pending approval or approved");
+        }
+        if (quotation.status() == QuotationStatus.APPROVED) {
+            fulfillmentService.releaseHold(companyId, quotationId);
         }
         Quotation updated = quotationRepository
                 .updateStatus(

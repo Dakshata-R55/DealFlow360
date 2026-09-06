@@ -109,10 +109,49 @@ public class FulfillmentService {
 
     @Transactional
     public FulfillmentPlanResponse planIfAbsent(long companyId, long quotationId) {
-        if (!allocationRepository.findByQuotation(companyId, quotationId).isEmpty()) {
-            return get(companyId, quotationId);
+        return takeOnConfirm(companyId, quotationId);
+    }
+
+    @Transactional
+    public void reserveOnApprove(long companyId, long quotationId) {
+        Quotation quotation = requireQuote(companyId, quotationId);
+        if (quotation.status() != QuotationStatus.APPROVED) {
+            throw new ConflictException("Stock is reserved when the quote is approved");
         }
-        return recompute(companyId, quotationId, AllocationSource.AUTO);
+        recompute(companyId, quotationId, AllocationSource.AUTO);
+    }
+
+    @Transactional
+    public void releaseHold(long companyId, long quotationId) {
+        Quotation quotation = quotationRepository
+                .findById(quotationId, companyId)
+                .orElseThrow(() -> new NotFoundException("Quotation not found"));
+        if (quotation.status() == QuotationStatus.CONFIRMED) {
+            return;
+        }
+        releaseQuote(companyId, quotation, Hold.RESERVE);
+    }
+
+    @Transactional
+    public FulfillmentPlanResponse takeOnConfirm(long companyId, long quotationId) {
+        Quotation quotation = requireConfirmed(companyId, quotationId);
+        List<FulfillmentAllocation> allocations = allocationRepository.findByQuotation(companyId, quotationId);
+        if (allocations.isEmpty()) {
+            return recompute(companyId, quotationId, AllocationSource.AUTO);
+        }
+        for (FulfillmentAllocation allocation : allocations) {
+            if (allocation.kind() != AllocationKind.SHIP || allocation.warehouseId() == null) {
+                continue;
+            }
+            warehouseRepository.consumeReserved(
+                    allocation.warehouseId(),
+                    lineRepository
+                            .findById(allocation.quotationLineId(), quotation.id())
+                            .orElseThrow(() -> new NotFoundException("Quote line not found"))
+                            .productId(),
+                    allocation.quantity());
+        }
+        return toPlan(companyId, quotation);
     }
 
     @Transactional
@@ -152,7 +191,7 @@ public class FulfillmentService {
         if (sum != needed) {
             throw new BadRequestException("Split quantities must add up to the product quantity");
         }
-        releaseLine(companyId, quotation.id(), line);
+        releaseLine(companyId, quotation, line, Hold.TAKE);
         List<WarehouseStock> stocks = warehouseRepository.lockActiveStockForProduct(companyId, line.productId());
         for (FulfillmentOverrideRow row : rows) {
             AllocationKind kind = parseKind(row.kind());
@@ -164,7 +203,7 @@ public class FulfillmentService {
                 if (!stock.hasInventoryRow() || stock.available() < row.quantity()) {
                     throw new ConflictException("Not enough available stock in " + stock.name());
                 }
-                warehouseRepository.addReserved(row.warehouseId(), line.productId(), row.quantity());
+                warehouseRepository.consumeOnHand(row.warehouseId(), line.productId(), row.quantity());
             }
             allocationRepository.insert(
                     companyId,
@@ -223,8 +262,9 @@ public class FulfillmentService {
     }
 
     private FulfillmentPlanResponse recompute(long companyId, long quotationId, AllocationSource source) {
-        Quotation quotation = requireConfirmed(companyId, quotationId);
-        releaseQuote(companyId, quotation);
+        Quotation quotation = requireApprovedOrConfirmed(companyId, quotationId);
+        Hold hold = holdFor(quotation);
+        releaseQuote(companyId, quotation, hold);
         allocationRepository.deleteByQuotation(companyId, quotation.id());
         for (QuotationLine line : lineRepository.findByQuotation(quotation.id())) {
             if (line.billingType() != BillingType.ONE_TIME) {
@@ -233,7 +273,7 @@ public class FulfillmentService {
             List<WarehouseStock> stocks = warehouseRepository.lockActiveStockForProduct(companyId, line.productId());
             for (FulfillmentPlanner.PlannedSplit split : planner.split(quantity(line), stocks)) {
                 if (split.kind() == AllocationKind.SHIP && split.warehouseId() != null) {
-                    warehouseRepository.addReserved(split.warehouseId(), line.productId(), split.quantity());
+                    applyShip(hold, split.warehouseId(), line.productId(), split.quantity());
                 }
                 allocationRepository.insert(
                         companyId,
@@ -248,22 +288,36 @@ public class FulfillmentService {
         return toPlan(companyId, quotation);
     }
 
-    private void releaseQuote(long companyId, Quotation quotation) {
+    private void releaseQuote(long companyId, Quotation quotation, Hold hold) {
         for (QuotationLine line : lineRepository.findByQuotation(quotation.id())) {
-            releaseLine(companyId, quotation.id(), line);
+            releaseLine(companyId, quotation, line, hold);
         }
     }
 
-    private void releaseLine(long companyId, long quotationId, QuotationLine line) {
-        for (FulfillmentAllocation allocation : allocationRepository.findByQuotation(companyId, quotationId)) {
+    private void releaseLine(long companyId, Quotation quotation, QuotationLine line, Hold hold) {
+        for (FulfillmentAllocation allocation : allocationRepository.findByQuotation(companyId, quotation.id())) {
             if (allocation.quotationLineId() != line.id() || allocation.kind() != AllocationKind.SHIP) {
                 continue;
             }
             if (allocation.warehouseId() != null) {
-                warehouseRepository.addReserved(allocation.warehouseId(), line.productId(), -allocation.quantity());
+                if (hold == Hold.TAKE) {
+                    warehouseRepository.restoreOnHand(
+                            allocation.warehouseId(), line.productId(), allocation.quantity());
+                } else {
+                    warehouseRepository.releaseReserved(
+                            allocation.warehouseId(), line.productId(), allocation.quantity());
+                }
             }
         }
-        allocationRepository.deleteByLine(companyId, quotationId, line.id());
+        allocationRepository.deleteByLine(companyId, quotation.id(), line.id());
+    }
+
+    private void applyShip(Hold hold, long warehouseId, long productId, int quantity) {
+        if (hold == Hold.TAKE) {
+            warehouseRepository.consumeOnHand(warehouseId, productId, quantity);
+        } else {
+            warehouseRepository.addReserved(warehouseId, productId, quantity);
+        }
     }
 
     private FulfillmentPlanResponse toPlan(long companyId, Quotation quotation) {
@@ -334,14 +388,35 @@ public class FulfillmentService {
                 lines);
     }
 
-    private Quotation requireConfirmed(long companyId, long quotationId) {
-        Quotation quotation = quotationRepository
+    private Quotation requireQuote(long companyId, long quotationId) {
+        return quotationRepository
                 .findById(quotationId, companyId)
                 .orElseThrow(() -> new NotFoundException("Quotation not found"));
+    }
+
+    private Quotation requireApprovedOrConfirmed(long companyId, long quotationId) {
+        Quotation quotation = requireQuote(companyId, quotationId);
+        if (quotation.status() != QuotationStatus.APPROVED && quotation.status() != QuotationStatus.CONFIRMED) {
+            throw new ConflictException("Fulfillment holds stock after approval");
+        }
+        return quotation;
+    }
+
+    private Quotation requireConfirmed(long companyId, long quotationId) {
+        Quotation quotation = requireQuote(companyId, quotationId);
         if (quotation.status() != QuotationStatus.CONFIRMED) {
             throw new ConflictException("Fulfillment starts after the customer confirms");
         }
         return quotation;
+    }
+
+    private static Hold holdFor(Quotation quotation) {
+        return quotation.status() == QuotationStatus.CONFIRMED ? Hold.TAKE : Hold.RESERVE;
+    }
+
+    private enum Hold {
+        RESERVE,
+        TAKE
     }
 
     private static AllocationKind parseKind(String kind) {

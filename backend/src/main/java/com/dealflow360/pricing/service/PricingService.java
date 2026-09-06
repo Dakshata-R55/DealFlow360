@@ -70,6 +70,24 @@ public class PricingService {
     }
 
     @Transactional
+    public PriceListResponse updatePriceList(long companyId, long id, PriceListRequest request) {
+        priceListRepository
+                .findById(id, companyId)
+                .orElseThrow(() -> new NotFoundException("Price list not found"));
+        requireTier(companyId, request.customerTierId());
+        PriceList updated = priceListRepository
+                .update(
+                        id,
+                        companyId,
+                        request.name().trim(),
+                        request.currency().trim().toUpperCase(),
+                        request.customerTierId(),
+                        request.active() == null || request.active())
+                .orElseThrow(() -> new NotFoundException("Price list not found"));
+        return PriceListResponse.from(updated, priceListRepository.findItems(updated.id(), companyId));
+    }
+
+    @Transactional
     public PriceListItemResponse upsertItem(
             long companyId, long priceListId, long productId, PriceListItemRequest request) {
         PriceList priceList = priceListRepository

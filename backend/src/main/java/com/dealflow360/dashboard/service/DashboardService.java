@@ -11,8 +11,10 @@ import com.dealflow360.dashboard.dto.DashboardResponse.DashboardTableRowResponse
 import com.dealflow360.dashboard.dto.SearchHitResponse;
 import com.dealflow360.dashboard.repository.DashboardRepository;
 import com.dealflow360.dashboard.repository.DashboardRepository.CountRow;
+import com.dealflow360.dashboard.repository.DashboardRepository.NamedStamp;
 import com.dealflow360.dashboard.repository.DashboardRepository.ProductRow;
 import com.dealflow360.dashboard.repository.DashboardRepository.QuoteRow;
+import com.dealflow360.dashboard.repository.DashboardRepository.RequestRow;
 import com.dealflow360.dashboard.repository.DashboardRepository.WarehouseRow;
 import com.dealflow360.quotation.model.QuotationStatus;
 import java.math.BigDecimal;
@@ -110,11 +112,22 @@ public class DashboardService {
         List<DashboardActivityResponse> activity = new ArrayList<>();
         for (QuoteRow row : recent) {
             activity.add(new DashboardActivityResponse(
-                    row.quoteNumber() + " · " + pipelineLabel(QuotationStatus.valueOf(row.status())),
-                    row.customerName(),
+                    row.quoteNumber() + " " + quoteVerb(row),
+                    row.customerName() + " · " + pipelineLabel(QuotationStatus.valueOf(row.status())),
                     "/quotations?quote=" + row.id(),
                     row.updatedAt()));
         }
+        for (RequestRow row : dashboardRepository.recentRequests(companyId, 6)) {
+            activity.add(new DashboardActivityResponse(
+                    row.requestNumber() + " " + requestVerb(row.status()),
+                    row.customerName(),
+                    "/quotations",
+                    row.updatedAt()));
+        }
+        for (NamedStamp row : dashboardRepository.recentCustomers(companyId, 4)) {
+            activity.add(new DashboardActivityResponse(row.name(), "Customer", "/quotations", row.updatedAt()));
+        }
+        activity = trimActivity(activity, 10);
         List<DashboardTableRowResponse> table = new ArrayList<>();
         for (QuoteRow row : recent.stream().limit(6).toList()) {
             table.add(new DashboardTableRowResponse(
@@ -156,6 +169,10 @@ public class DashboardService {
             bars.add(new DashboardBarResponse(row.key(), row.count(), "/admin/catalog"));
         }
         List<DashboardActivityResponse> activity = new ArrayList<>();
+        for (NamedStamp row : dashboardRepository.recentCategories(companyId, 5)) {
+            activity.add(new DashboardActivityResponse(
+                    row.name(), "Category", "/admin/catalog", row.updatedAt()));
+        }
         for (ProductRow row : dashboardRepository.recentProducts(companyId, 5)) {
             activity.add(new DashboardActivityResponse(
                     row.name() + " updated",
@@ -167,21 +184,10 @@ public class DashboardService {
             activity.add(new DashboardActivityResponse(
                     row.name() + " warehouse", row.location(), "/admin/warehouses", row.updatedAt()));
         }
-        activity.sort((a, b) -> b.at().compareTo(a.at()));
-        if (activity.size() > 8) {
-            activity = new ArrayList<>(activity.subList(0, 8));
+        for (NamedStamp row : dashboardRepository.recentPlans(companyId, 3)) {
+            activity.add(new DashboardActivityResponse(row.name(), "Plan", "/admin/plans", row.updatedAt()));
         }
-        List<DashboardTableRowResponse> table = new ArrayList<>();
-        for (ProductRow row : dashboardRepository.recentProducts(companyId, 6)) {
-            table.add(new DashboardTableRowResponse(
-                    "P-" + row.id(),
-                    row.name(),
-                    row.categoryName(),
-                    rupee(row.basePrice()),
-                    row.billingType(),
-                    "/admin/products/" + row.id(),
-                    row.updatedAt()));
-        }
+        activity = trimActivity(activity, 10);
         return new DashboardResponse(
                 greeting(userName),
                 "Here's what's happening with your catalog today.",
@@ -203,13 +209,48 @@ public class DashboardService {
                 "Products by category",
                 bars,
                 activity,
-                "Recent products",
-                table,
+                "",
+                List.of(),
                 List.of(
                         new DashboardActionResponse("Catalog", "/admin/catalog"),
                         new DashboardActionResponse("Policies", "/admin/policies"),
                         new DashboardActionResponse("Warehouses", "/admin/warehouses"),
                         new DashboardActionResponse("Plans", "/admin/plans")));
+    }
+
+    private static List<DashboardActivityResponse> trimActivity(List<DashboardActivityResponse> activity, int limit) {
+        activity.sort((a, b) -> b.at().compareTo(a.at()));
+        if (activity.size() > limit) {
+            return new ArrayList<>(activity.subList(0, limit));
+        }
+        return activity;
+    }
+
+    private static String quoteVerb(QuoteRow row) {
+        if (row.createdAt() != null && Math.abs(row.updatedAt().toEpochMilli() - row.createdAt().toEpochMilli()) < 2000) {
+            return "created";
+        }
+        return switch (row.status()) {
+            case "PENDING_APPROVAL" -> "submitted";
+            case "NEGOTIATION" -> "in negotiation";
+            case "APPROVED" -> "approved";
+            case "CONFIRMED" -> "confirmed";
+            case "REJECTED" -> "rejected";
+            case "CANCELLED" -> "cancelled";
+            default -> "updated";
+        };
+    }
+
+    private static String requestVerb(String status) {
+        if (status == null) {
+            return "updated";
+        }
+        return switch (status) {
+            case "SUBMITTED" -> "submitted";
+            case "CONVERTED" -> "converted";
+            case "DRAFT" -> "drafted";
+            default -> "updated";
+        };
     }
 
     private static String greeting(String name) {

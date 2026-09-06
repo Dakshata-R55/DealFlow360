@@ -3,14 +3,19 @@ package com.dealflow360.customer.controller;
 import com.dealflow360.auth.security.AuthPrincipal;
 import com.dealflow360.auth.security.SecurityAuth;
 import com.dealflow360.customer.dto.CustomerResponse;
+import com.dealflow360.customer.dto.PatchCustomerTierRequest;
 import com.dealflow360.customer.service.CustomerService;
 import com.dealflow360.shared.api.ApiResponse;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,6 +34,18 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<List<CustomerResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = internal(authentication);
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, customerService.list(SecurityAuth.requireCompany(principal))));
+    }
+
+    @PatchMapping("/{id}/tier")
+    @PreAuthorize("hasAnyAuthority('ADMIN','SALES_MANAGER')")
+    public ResponseEntity<ApiResponse<CustomerResponse>> assignTier(
+            Authentication authentication,
+            @PathVariable long id,
+            @Valid @RequestBody PatchCustomerTierRequest request) {
+        AuthPrincipal principal = internal(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK,
+                customerService.assignTier(SecurityAuth.requireCompany(principal), id, request.customerTierId())));
     }
 
     private static AuthPrincipal internal(Authentication authentication) {

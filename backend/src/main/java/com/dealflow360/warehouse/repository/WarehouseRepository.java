@@ -73,8 +73,26 @@ public class WarehouseRepository {
     private static final String RELEASE_RESERVED =
             """
             UPDATE warehouse_inventory
-            SET reserved = reserved + ?
+            SET reserved = reserved - ?
             WHERE warehouse_id = ? AND product_id = ? AND reserved >= ?
+            """;
+    private static final String CONSUME_RESERVED =
+            """
+            UPDATE warehouse_inventory
+            SET on_hand = on_hand - ?, reserved = reserved - ?
+            WHERE warehouse_id = ? AND product_id = ? AND on_hand >= ? AND reserved >= ?
+            """;
+    private static final String CONSUME_ON_HAND =
+            """
+            UPDATE warehouse_inventory
+            SET on_hand = on_hand - ?
+            WHERE warehouse_id = ? AND product_id = ? AND on_hand - reserved >= ?
+            """;
+    private static final String RESTORE_ON_HAND =
+            """
+            UPDATE warehouse_inventory
+            SET on_hand = on_hand + ?
+            WHERE warehouse_id = ? AND product_id = ?
             """;
 
     private final DataSource dataSource;
@@ -193,25 +211,74 @@ public class WarehouseRepository {
         }
     }
 
-    public void addReserved(long warehouseId, long productId, int delta) {
-        if (delta == 0) {
+    public void addReserved(long warehouseId, long productId, int quantity) {
+        bumpStock(ADD_RESERVED, warehouseId, productId, quantity, "Not enough available stock to reserve");
+    }
+
+    public void releaseReserved(long warehouseId, long productId, int quantity) {
+        bumpStock(RELEASE_RESERVED, warehouseId, productId, quantity, "Could not release reservation");
+    }
+
+    public void consumeReserved(long warehouseId, long productId, int quantity) {
+        if (quantity <= 0) {
             return;
         }
         Connection connection = DataSourceUtils.getConnection(dataSource);
-        try (PreparedStatement statement =
-                connection.prepareStatement(delta > 0 ? ADD_RESERVED : RELEASE_RESERVED)) {
-            statement.setInt(1, delta);
-            statement.setLong(2, warehouseId);
-            statement.setLong(3, productId);
-            if (delta > 0) {
-                statement.setInt(4, delta);
-            } else {
-                statement.setInt(4, -delta);
-            }
+        try (PreparedStatement statement = connection.prepareStatement(CONSUME_RESERVED)) {
+            statement.setInt(1, quantity);
+            statement.setInt(2, quantity);
+            statement.setLong(3, warehouseId);
+            statement.setLong(4, productId);
+            statement.setInt(5, quantity);
+            statement.setInt(6, quantity);
             int updated = statement.executeUpdate();
             if (updated != 1) {
-                throw new ConflictException(
-                        delta > 0 ? "Not enough available stock to reserve" : "Could not release reservation");
+                throw new ConflictException("Reserved stock could not be taken off the shelf");
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public void consumeOnHand(long warehouseId, long productId, int quantity) {
+        bumpStock(CONSUME_ON_HAND, warehouseId, productId, quantity, "Not enough on-hand stock");
+    }
+
+    public void restoreOnHand(long warehouseId, long productId, int quantity) {
+        if (quantity <= 0) {
+            return;
+        }
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(RESTORE_ON_HAND)) {
+            statement.setInt(1, quantity);
+            statement.setLong(2, warehouseId);
+            statement.setLong(3, productId);
+            int updated = statement.executeUpdate();
+            if (updated != 1) {
+                throw new ConflictException("Could not put stock back");
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    private void bumpStock(String sql, long warehouseId, long productId, int quantity, String conflictMessage) {
+        if (quantity <= 0) {
+            return;
+        }
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, quantity);
+            statement.setLong(2, warehouseId);
+            statement.setLong(3, productId);
+            statement.setInt(4, quantity);
+            int updated = statement.executeUpdate();
+            if (updated != 1) {
+                throw new ConflictException(conflictMessage);
             }
         } catch (SQLException ex) {
             throw new RuntimeException(ex);

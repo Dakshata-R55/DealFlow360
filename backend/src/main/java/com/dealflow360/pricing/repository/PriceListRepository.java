@@ -58,6 +58,12 @@ public class PriceListRepository {
             JOIN price_lists pl ON pl.id = i.price_list_id
             WHERE i.price_list_id = ? AND i.product_id = ? AND pl.company_id = ?
             """;
+    private static final String UPDATE =
+            """
+            UPDATE price_lists
+            SET name = ?, currency = ?, customer_tier_id = ?, active = ?
+            WHERE id = ? AND company_id = ?
+            """;
 
     private final DataSource dataSource;
 
@@ -81,6 +87,28 @@ public class PriceListRepository {
                 return findById(keys.getLong(1), companyId)
                         .orElseThrow(() -> new SQLException("Inserted price list not found"));
             }
+        } catch (SQLException ex) {
+            if (ex.getErrorCode() == 1062) {
+                throw new ConflictException("Price list already exists");
+            }
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public Optional<PriceList> update(
+            long id, long companyId, String name, String currency, long customerTierId, boolean active) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE)) {
+            statement.setString(1, name);
+            statement.setString(2, currency);
+            statement.setLong(3, customerTierId);
+            statement.setBoolean(4, active);
+            statement.setLong(5, id);
+            statement.setLong(6, companyId);
+            statement.executeUpdate();
+            return findById(id, companyId);
         } catch (SQLException ex) {
             if (ex.getErrorCode() == 1062) {
                 throw new ConflictException("Price list already exists");

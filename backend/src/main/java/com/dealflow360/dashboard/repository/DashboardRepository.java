@@ -24,11 +24,16 @@ public class DashboardRepository {
             String customerName,
             BigDecimal totalAmount,
             String status,
+            Instant createdAt,
             Instant updatedAt) {}
 
     public record ProductRow(long id, String name, String categoryName, BigDecimal basePrice, String billingType, Instant updatedAt) {}
 
     public record WarehouseRow(long id, String name, String location, Instant updatedAt) {}
+
+    public record NamedStamp(long id, String name, Instant updatedAt) {}
+
+    public record RequestRow(long id, String requestNumber, String customerName, String status, Instant updatedAt) {}
 
     private final DataSource dataSource;
 
@@ -92,7 +97,7 @@ public class DashboardRepository {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(
                 """
-                SELECT q.id, q.quote_number, c.name AS customer_name, q.total_amount, q.status, q.updated_at
+                SELECT q.id, q.quote_number, c.name AS customer_name, q.total_amount, q.status, q.created_at, q.updated_at
                 FROM quotations q
                 JOIN customers c ON c.id = q.customer_id
                 WHERE q.company_id = ?
@@ -191,6 +196,36 @@ public class DashboardRepository {
         }
     }
 
+    public List<NamedStamp> recentCategories(long companyId, int limit) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(
+                """
+                SELECT id, name, updated_at
+                FROM product_categories
+                WHERE company_id = ?
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """)) {
+            statement.setLong(1, companyId);
+            statement.setInt(2, limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<NamedStamp> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    Timestamp updated = resultSet.getTimestamp("updated_at");
+                    rows.add(new NamedStamp(
+                            resultSet.getLong("id"),
+                            resultSet.getString("name"),
+                            updated == null ? Instant.EPOCH : updated.toInstant()));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
     public List<WarehouseRow> recentWarehouses(long companyId, int limit) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(
@@ -226,7 +261,7 @@ public class DashboardRepository {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(
                 """
-                SELECT q.id, q.quote_number, c.name AS customer_name, q.total_amount, q.status, q.updated_at
+                SELECT q.id, q.quote_number, c.name AS customer_name, q.total_amount, q.status, q.created_at, q.updated_at
                 FROM quotations q
                 JOIN customers c ON c.id = q.customer_id
                 WHERE q.company_id = ? AND (q.quote_number LIKE ? OR c.name LIKE ?)
@@ -273,7 +308,84 @@ public class DashboardRepository {
         }
     }
 
+    public List<NamedStamp> recentCustomers(long companyId, int limit) {
+        return namedStamps(
+                "SELECT id, name, updated_at FROM customers WHERE company_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?",
+                companyId,
+                limit);
+    }
+
+    public List<NamedStamp> recentPlans(long companyId, int limit) {
+        return namedStamps(
+                """
+                SELECT id, name, updated_at
+                FROM subscription_plans
+                WHERE company_id = ?
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                companyId,
+                limit);
+    }
+
+    public List<RequestRow> recentRequests(long companyId, int limit) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(
+                """
+                SELECT r.id, r.request_number, u.name AS customer_name, r.status, r.updated_at
+                FROM quote_requests r
+                JOIN users u ON u.id = r.customer_user_id
+                WHERE r.seller_company_id = ?
+                ORDER BY r.updated_at DESC, r.id DESC
+                LIMIT ?
+                """)) {
+            statement.setLong(1, companyId);
+            statement.setInt(2, limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<RequestRow> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    Timestamp updated = resultSet.getTimestamp("updated_at");
+                    rows.add(new RequestRow(
+                            resultSet.getLong("id"),
+                            resultSet.getString("request_number"),
+                            resultSet.getString("customer_name"),
+                            resultSet.getString("status"),
+                            updated == null ? Instant.EPOCH : updated.toInstant()));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    private List<NamedStamp> namedStamps(String sql, long companyId, int limit) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, companyId);
+            statement.setInt(2, limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<NamedStamp> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    Timestamp updated = resultSet.getTimestamp("updated_at");
+                    rows.add(new NamedStamp(
+                            resultSet.getLong("id"),
+                            resultSet.getString("name"),
+                            updated == null ? Instant.EPOCH : updated.toInstant()));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
     private static QuoteRow mapQuote(ResultSet resultSet) throws SQLException {
+        Timestamp created = resultSet.getTimestamp("created_at");
         Timestamp updated = resultSet.getTimestamp("updated_at");
         return new QuoteRow(
                 resultSet.getLong("id"),
@@ -281,6 +393,7 @@ public class DashboardRepository {
                 resultSet.getString("customer_name"),
                 resultSet.getBigDecimal("total_amount"),
                 resultSet.getString("status"),
+                created == null ? Instant.EPOCH : created.toInstant(),
                 updated == null ? Instant.EPOCH : updated.toInstant());
     }
 

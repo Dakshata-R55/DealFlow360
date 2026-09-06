@@ -8,6 +8,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceUtils;
@@ -28,6 +30,8 @@ public class CompanyCustomerRepository {
                    created_at, updated_at
             FROM company_customers
             """;
+    private static final String UPDATE_TIER =
+            "UPDATE company_customers SET customer_tier_id = ? WHERE seller_company_id = ? AND seller_customer_id = ?";
 
     private final DataSource dataSource;
 
@@ -65,6 +69,39 @@ public class CompanyCustomerRepository {
                 }
                 return Optional.of(map(resultSet));
             }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public List<CompanyCustomer> findByCustomerUser(long customerUserId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement =
+                connection.prepareStatement(SELECT + " WHERE customer_user_id = ? ORDER BY id")) {
+            statement.setLong(1, customerUserId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CompanyCustomer> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    rows.add(map(resultSet));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public void updateTierBySellerCustomer(long sellerCompanyId, long sellerCustomerId, long customerTierId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE_TIER)) {
+            statement.setLong(1, customerTierId);
+            statement.setLong(2, sellerCompanyId);
+            statement.setLong(3, sellerCustomerId);
+            statement.executeUpdate();
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {

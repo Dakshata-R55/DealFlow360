@@ -21,6 +21,8 @@ public class CustomerRepository {
 
     private static final String INSERT =
             "INSERT INTO customers (company_id, name, customer_tier_id, customer_user_id, active) VALUES (?, ?, ?, ?, ?)";
+    private static final String UPDATE_TIER =
+            "UPDATE customers SET customer_tier_id = ? WHERE id = ? AND company_id = ?";
     private static final String SELECT =
             """
             SELECT id, company_id, name, customer_tier_id, customer_user_id, active, created_at, updated_at
@@ -136,6 +138,20 @@ public class CustomerRepository {
                 }
                 return rows;
             }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public void updateTier(long id, long companyId, long customerTierId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE_TIER)) {
+            statement.setLong(1, customerTierId);
+            statement.setLong(2, id);
+            statement.setLong(3, companyId);
+            statement.executeUpdate();
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {

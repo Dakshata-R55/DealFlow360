@@ -18,6 +18,7 @@ import com.dealflow360.subscription.model.CancellationRule;
 import com.dealflow360.subscription.model.PlanCycle;
 import com.dealflow360.subscription.model.ProrationRule;
 import com.dealflow360.subscription.repository.SubscriptionPlanRepository;
+import com.dealflow360.standing.service.StandingService;
 import com.dealflow360.upsell.repository.UpsellRuleRepository;
 import com.dealflow360.warehouse.model.Warehouse;
 import com.dealflow360.warehouse.repository.WarehouseRepository;
@@ -245,6 +246,22 @@ public class MasterDataInitializer implements ApplicationRunner {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """;
 
+    private static final String STANDING_RULES_SQL =
+            """
+            CREATE TABLE IF NOT EXISTS standing_rules (
+              id BIGINT NOT NULL AUTO_INCREMENT,
+              company_id BIGINT NOT NULL,
+              silver_min_spend DECIMAL(12,2) NOT NULL,
+              gold_min_spend DECIMAL(12,2) NOT NULL,
+              window_months INT NOT NULL DEFAULT 6,
+              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_standing_rules_company (company_id),
+              CONSTRAINT fk_standing_rules_company FOREIGN KEY (company_id) REFERENCES companies (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """;
+
     private final DataSource dataSource;
     private final CompanyRepository companyRepository;
     private final ProductCategoryRepository categoryRepository;
@@ -257,6 +274,7 @@ public class MasterDataInitializer implements ApplicationRunner {
     private final WarehouseRepository warehouseRepository;
     private final SubscriptionPlanRepository planRepository;
     private final UpsellRuleRepository upsellRuleRepository;
+    private final StandingService standingService;
 
     public MasterDataInitializer(
             DataSource dataSource,
@@ -270,7 +288,8 @@ public class MasterDataInitializer implements ApplicationRunner {
             ApprovalPolicyRepository approvalPolicyRepository,
             WarehouseRepository warehouseRepository,
             SubscriptionPlanRepository planRepository,
-            UpsellRuleRepository upsellRuleRepository) {
+            UpsellRuleRepository upsellRuleRepository,
+            StandingService standingService) {
         this.dataSource = dataSource;
         this.companyRepository = companyRepository;
         this.categoryRepository = categoryRepository;
@@ -283,6 +302,7 @@ public class MasterDataInitializer implements ApplicationRunner {
         this.warehouseRepository = warehouseRepository;
         this.planRepository = planRepository;
         this.upsellRuleRepository = upsellRuleRepository;
+        this.standingService = standingService;
     }
 
     @Override
@@ -293,6 +313,7 @@ public class MasterDataInitializer implements ApplicationRunner {
         seedSellerCatalog("NOVA", novaProducts());
         for (Company company : companyRepository.findActive("")) {
             seedApprovalIfMissing(company.id());
+            standingService.ensureDefault(company.id());
         }
         log.info("Master data schema ready.");
     }
@@ -312,6 +333,7 @@ public class MasterDataInitializer implements ApplicationRunner {
             statement.execute(INVENTORY_SQL);
             statement.execute(PLANS_SQL);
             statement.execute(UPSELL_SQL);
+            statement.execute(STANDING_RULES_SQL);
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {

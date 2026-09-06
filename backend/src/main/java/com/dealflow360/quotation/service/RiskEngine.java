@@ -125,7 +125,7 @@ public class RiskEngine {
         return switch (level) {
             case NONE -> new LikelyRoute(false, false);
             case MEDIUM -> new LikelyRoute(true, false);
-            case HIGH -> new LikelyRoute(true, true);
+            case HIGH -> new LikelyRoute(false, true);
         };
     }
 
@@ -144,7 +144,7 @@ public class RiskEngine {
     private static LikelyRoute routeFor(BigDecimal maxLineExcess, BigDecimal quoteExcessPct, ApprovalPolicy approval) {
         if (maxLineExcess.compareTo(approval.financeLineExcessPercent()) >= 0
                 || quoteExcessPct.compareTo(approval.financeQuoteExcessPercent()) >= 0) {
-            return new LikelyRoute(true, true);
+            return new LikelyRoute(false, true);
         }
         if (maxLineExcess.compareTo(approval.managerLineExcessPercent()) >= 0
                 || quoteExcessPct.compareTo(approval.managerQuoteExcessPercent()) >= 0) {

@@ -173,6 +173,14 @@ public class QuotationController {
                 HttpStatus.OK, quotationService.returnToQueue(SecurityAuth.requireCompany(principal), id)));
     }
 
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
+    public ResponseEntity<ApiResponse<QuotationResponse>> cancel(Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = writer(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quotationService.cancel(SecurityAuth.requireCompany(principal), id)));
+    }
+
     @PostMapping("/{id}/return-to-pending")
     @PreAuthorize("hasAnyAuthority('SALES_REP','SALES_MANAGER','FINANCE_OPS')")
     public ResponseEntity<ApiResponse<QuotationResponse>> returnToPending(
