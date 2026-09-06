@@ -8,7 +8,5 @@ public record StandingProgressResponse(
         String standingName,
         BigDecimal spend,
         int windowMonths,
-        BigDecimal silverMinSpend,
-        BigDecimal goldMinSpend,
         String nextStanding,
         BigDecimal amountToNext) {}

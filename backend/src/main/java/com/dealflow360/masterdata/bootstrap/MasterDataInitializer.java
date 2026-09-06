@@ -251,14 +251,15 @@ public class MasterDataInitializer implements ApplicationRunner {
             CREATE TABLE IF NOT EXISTS standing_rules (
               id BIGINT NOT NULL AUTO_INCREMENT,
               company_id BIGINT NOT NULL,
-              silver_min_spend DECIMAL(12,2) NOT NULL,
-              gold_min_spend DECIMAL(12,2) NOT NULL,
+              customer_tier_id BIGINT NOT NULL,
+              min_spend DECIMAL(12,2) NOT NULL DEFAULT 0,
               window_months INT NOT NULL DEFAULT 6,
               created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
               updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               PRIMARY KEY (id),
-              UNIQUE KEY uk_standing_rules_company (company_id),
-              CONSTRAINT fk_standing_rules_company FOREIGN KEY (company_id) REFERENCES companies (id)
+              UNIQUE KEY uk_standing_rules_company_tier (company_id, customer_tier_id),
+              CONSTRAINT fk_standing_rules_company FOREIGN KEY (company_id) REFERENCES companies (id),
+              CONSTRAINT fk_standing_rules_tier FOREIGN KEY (customer_tier_id) REFERENCES customer_tiers (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """;
 
@@ -333,7 +334,7 @@ public class MasterDataInitializer implements ApplicationRunner {
             statement.execute(INVENTORY_SQL);
             statement.execute(PLANS_SQL);
             statement.execute(UPSELL_SQL);
-            statement.execute(STANDING_RULES_SQL);
+            migrateStandingRules(connection, statement);
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         } finally {
@@ -539,6 +540,20 @@ public class MasterDataInitializer implements ApplicationRunner {
                         new BigDecimal("14000.00"),
                         new BigDecimal("7000.00"),
                         BillingType.ONE_TIME));
+    }
+
+    private void migrateStandingRules(Connection connection, Statement statement) throws SQLException {
+        boolean oldShape = false;
+        try (Statement probe = connection.createStatement()) {
+            probe.executeQuery("SELECT silver_min_spend FROM standing_rules LIMIT 1");
+            oldShape = true;
+        } catch (SQLException ignored) {
+            oldShape = false;
+        }
+        if (oldShape) {
+            statement.execute("DROP TABLE IF EXISTS standing_rules");
+        }
+        statement.execute(STANDING_RULES_SQL);
     }
 
     private void migrateApprovalPolicies(Connection connection, Statement statement) throws SQLException {

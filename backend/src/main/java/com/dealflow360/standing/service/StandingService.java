@@ -15,6 +15,7 @@ import com.dealflow360.standing.model.StandingRule;
 import com.dealflow360.standing.repository.StandingRuleRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,15 +46,21 @@ public class StandingService {
         this.companyRepository = companyRepository;
     }
 
-    public StandingRuleResponse getRule(long companyId) {
-        return StandingRuleResponse.from(requireRule(companyId));
+    public List<StandingRuleResponse> listRules(long companyId) {
+        ensureDefault(companyId);
+        return standingRuleRepository.findByCompany(companyId).stream()
+                .map(StandingRuleResponse::from)
+                .toList();
     }
 
     @Transactional
-    public StandingRuleResponse saveRule(long companyId, StandingRuleRequest request) {
+    public StandingRuleResponse saveRule(long companyId, long customerTierId, StandingRuleRequest request) {
+        tierRepository
+                .findById(customerTierId, companyId)
+                .orElseThrow(() -> new NotFoundException("Standing not found"));
         int window = request.windowMonths() == null ? DEFAULT_WINDOW : request.windowMonths();
         return StandingRuleResponse.from(
-                standingRuleRepository.upsert(companyId, request.silverMinSpend(), request.goldMinSpend(), window));
+                standingRuleRepository.upsert(companyId, customerTierId, request.minSpend(), window));
     }
 
     @Transactional
@@ -61,23 +68,27 @@ public class StandingService {
         Customer customer = customerRepository
                 .findById(customerId, companyId)
                 .orElseThrow(() -> new NotFoundException("Customer not found"));
-        StandingRule rule = requireRule(companyId);
-        BigDecimal spend = standingRuleRepository.confirmedSpend(companyId, customerId, rule.windowMonths());
-        String target = targetName(spend, rule);
-        if (target == null) {
+        ensureDefault(companyId);
+        List<StandingRule> rules = standingRuleRepository.findByCompany(companyId);
+        StandingRule current = ruleForTier(rules, customer.customerTierId());
+        BigDecimal currentMin = current == null ? BigDecimal.ZERO : current.minSpend();
+        StandingRule best = null;
+        for (StandingRule rule : rules.stream()
+                .sorted(Comparator.comparing(StandingRule::minSpend).reversed())
+                .toList()) {
+            if (rule.minSpend().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal spend = standingRuleRepository.confirmedSpend(companyId, customerId, rule.windowMonths());
+            if (spend.compareTo(rule.minSpend()) >= 0) {
+                best = rule;
+                break;
+            }
+        }
+        if (best == null || best.minSpend().compareTo(currentMin) <= 0) {
             return;
         }
-        CustomerTier current = tierRepository
-                .findById(customer.customerTierId(), companyId)
-                .orElseThrow(() -> new NotFoundException("Customer tier not found"));
-        if (rank(target) <= rank(current.name())) {
-            return;
-        }
-        CustomerTier next = findTierByName(companyId, target);
-        if (next == null) {
-            return;
-        }
-        applyTier(companyId, customerId, next.id());
+        applyTier(companyId, customerId, best.customerTierId());
     }
 
     @Transactional
@@ -103,10 +114,17 @@ public class StandingService {
         return rows;
     }
 
-    public StandingRule ensureDefault(long companyId) {
-        return standingRuleRepository
-                .findByCompany(companyId)
-                .orElseGet(() -> standingRuleRepository.insert(companyId, DEFAULT_SILVER, DEFAULT_GOLD, DEFAULT_WINDOW));
+    public void ensureDefault(long companyId) {
+        for (CustomerTier tier : tierRepository.findByCompany(companyId)) {
+            ensureForTier(companyId, tier);
+        }
+    }
+
+    public void ensureForTier(long companyId, CustomerTier tier) {
+        if (standingRuleRepository.findByTier(companyId, tier.id()).isPresent()) {
+            return;
+        }
+        standingRuleRepository.insert(companyId, tier.id(), defaultMinSpend(tier.name()), DEFAULT_WINDOW);
     }
 
     private StandingProgressResponse progress(long companyId, long customerId) {
@@ -116,72 +134,44 @@ public class StandingService {
         CustomerTier current = tierRepository
                 .findById(customer.customerTierId(), companyId)
                 .orElseThrow(() -> new NotFoundException("Customer tier not found"));
-        StandingRule rule = requireRule(companyId);
-        BigDecimal spend = standingRuleRepository.confirmedSpend(companyId, customerId, rule.windowMonths());
+        ensureDefault(companyId);
+        List<StandingRule> rules = standingRuleRepository.findByCompany(companyId);
+        StandingRule currentRule = ruleForTier(rules, current.id());
+        int window = currentRule == null ? DEFAULT_WINDOW : currentRule.windowMonths();
+        BigDecimal spend = standingRuleRepository.confirmedSpend(companyId, customerId, window);
         String seller = companyRepository.findById(companyId).map(company -> company.name()).orElse("");
-        String next = nextAbove(current.name(), rule);
+        BigDecimal currentMin = currentRule == null ? BigDecimal.ZERO : currentRule.minSpend();
+        StandingRule next = rules.stream()
+                .filter(rule -> rule.minSpend().compareTo(currentMin) > 0)
+                .min(Comparator.comparing(StandingRule::minSpend))
+                .orElse(null);
+        String nextName = null;
         BigDecimal remaining = null;
-        if ("Silver".equalsIgnoreCase(next)) {
-            remaining = rule.silverMinSpend().subtract(spend).max(BigDecimal.ZERO);
-        } else if ("Gold".equalsIgnoreCase(next)) {
-            remaining = rule.goldMinSpend().subtract(spend).max(BigDecimal.ZERO);
+        if (next != null) {
+            CustomerTier nextTier = tierRepository.findById(next.customerTierId(), companyId).orElse(null);
+            nextName = nextTier == null ? null : nextTier.name();
+            BigDecimal nextSpend = standingRuleRepository.confirmedSpend(companyId, customerId, next.windowMonths());
+            remaining = next.minSpend().subtract(nextSpend).max(BigDecimal.ZERO);
         }
         return new StandingProgressResponse(
-                companyId,
-                seller,
-                current.name(),
-                spend,
-                rule.windowMonths(),
-                rule.silverMinSpend(),
-                rule.goldMinSpend(),
-                next,
-                remaining);
+                companyId, seller, current.name(), spend, window, nextName, remaining);
     }
 
-    private StandingRule requireRule(long companyId) {
-        return standingRuleRepository.findByCompany(companyId).orElseGet(() -> ensureDefault(companyId));
+    private static StandingRule ruleForTier(List<StandingRule> rules, long customerTierId) {
+        return rules.stream().filter(rule -> rule.customerTierId() == customerTierId).findFirst().orElse(null);
     }
 
-    private CustomerTier findTierByName(long companyId, String name) {
-        return tierRepository.findByCompany(companyId).stream()
-                .filter(tier -> name.equalsIgnoreCase(tier.name()))
-                .findFirst()
-                .orElse(null);
-    }
-
-    private static String targetName(BigDecimal spend, StandingRule rule) {
-        if (rule.goldMinSpend().compareTo(BigDecimal.ZERO) > 0 && spend.compareTo(rule.goldMinSpend()) >= 0) {
-            return "Gold";
-        }
-        if (rule.silverMinSpend().compareTo(BigDecimal.ZERO) > 0 && spend.compareTo(rule.silverMinSpend()) >= 0) {
-            return "Silver";
-        }
-        return null;
-    }
-
-    private static String nextAbove(String current, StandingRule rule) {
-        int currentRank = rank(current);
-        if (currentRank < rank("Silver")
-                && rule.silverMinSpend().compareTo(BigDecimal.ZERO) > 0) {
-            return "Silver";
-        }
-        if (currentRank < rank("Gold") && rule.goldMinSpend().compareTo(BigDecimal.ZERO) > 0) {
-            return "Gold";
-        }
-        return null;
-    }
-
-    private static int rank(String name) {
+    private static BigDecimal defaultMinSpend(String name) {
         if (name == null) {
-            return 0;
+            return BigDecimal.ZERO;
         }
         String key = name.trim().toLowerCase();
         if (key.equals("gold")) {
-            return 2;
+            return DEFAULT_GOLD;
         }
         if (key.equals("silver")) {
-            return 1;
+            return DEFAULT_SILVER;
         }
-        return 0;
+        return BigDecimal.ZERO;
     }
 }

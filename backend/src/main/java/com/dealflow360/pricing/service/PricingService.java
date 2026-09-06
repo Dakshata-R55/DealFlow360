@@ -12,6 +12,7 @@ import com.dealflow360.pricing.model.PriceList;
 import com.dealflow360.pricing.repository.CustomerTierRepository;
 import com.dealflow360.pricing.repository.PriceListRepository;
 import com.dealflow360.shared.exception.NotFoundException;
+import com.dealflow360.standing.service.StandingService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,14 +23,17 @@ public class PricingService {
     private final CustomerTierRepository tierRepository;
     private final PriceListRepository priceListRepository;
     private final ProductRepository productRepository;
+    private final StandingService standingService;
 
     public PricingService(
             CustomerTierRepository tierRepository,
             PriceListRepository priceListRepository,
-            ProductRepository productRepository) {
+            ProductRepository productRepository,
+            StandingService standingService) {
         this.tierRepository = tierRepository;
         this.priceListRepository = priceListRepository;
         this.productRepository = productRepository;
+        this.standingService = standingService;
     }
 
     public List<CustomerTierResponse> listTiers(long companyId) {
@@ -46,6 +50,7 @@ public class PricingService {
                 request.defaultDiscountLimit(),
                 request.active() == null || request.active());
         ensureDefaultPriceList(companyId, tier);
+        standingService.ensureForTier(companyId, tier);
         return CustomerTierResponse.from(tier);
     }
 

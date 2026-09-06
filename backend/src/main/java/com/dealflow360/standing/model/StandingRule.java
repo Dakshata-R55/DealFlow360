@@ -6,8 +6,8 @@ import java.time.Instant;
 public record StandingRule(
         long id,
         long companyId,
-        BigDecimal silverMinSpend,
-        BigDecimal goldMinSpend,
+        long customerTierId,
+        BigDecimal minSpend,
         int windowMonths,
         Instant createdAt,
         Instant updatedAt) {}

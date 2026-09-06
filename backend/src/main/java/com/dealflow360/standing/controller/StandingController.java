@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,20 +30,22 @@ public class StandingController {
 
     @GetMapping("/api/standing-rules")
     @PreAuthorize("hasAnyAuthority('ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS')")
-    public ResponseEntity<ApiResponse<StandingRuleResponse>> get(Authentication authentication) {
+    public ResponseEntity<ApiResponse<List<StandingRuleResponse>>> list(Authentication authentication) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         SecurityAuth.requireInternal(principal);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, standingService.getRule(SecurityAuth.requireCompany(principal))));
+                HttpStatus.OK, standingService.listRules(SecurityAuth.requireCompany(principal))));
     }
 
-    @PutMapping("/api/standing-rules")
+    @PutMapping("/api/standing-rules/{tierId}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<StandingRuleResponse>> save(
-            Authentication authentication, @Valid @RequestBody StandingRuleRequest request) {
+            Authentication authentication,
+            @PathVariable long tierId,
+            @Valid @RequestBody StandingRuleRequest request) {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(ApiResponse.success(
-                HttpStatus.OK, standingService.saveRule(SecurityAuth.requireCompany(principal), request)));
+                HttpStatus.OK, standingService.saveRule(SecurityAuth.requireCompany(principal), tierId, request)));
     }
 
     @GetMapping("/api/customer/standing")

@@ -22,8 +22,10 @@ import com.dealflow360.quotation.model.Quotation;
 import com.dealflow360.quotation.repository.QuotationRepository;
 import com.dealflow360.quotation.service.QuotePricingService;
 import com.dealflow360.quotation.service.QuotationService;
+import com.dealflow360.quotation.service.RecommendationService;
 import com.dealflow360.quotation.service.RiskEngine;
 import com.dealflow360.quoterequest.dto.CreateQuoteRequestBody;
+import com.dealflow360.quoterequest.dto.CustomerRecommendationResponse;
 import com.dealflow360.quoterequest.dto.PatchQuoteRequestBody;
 import com.dealflow360.quoterequest.dto.PatchQuoteRequestLineBody;
 import com.dealflow360.quoterequest.dto.QuoteRequestLineBody;
@@ -66,6 +68,7 @@ public class QuoteRequestService {
     private final QuotationRepository quotationRepository;
     private final QuotePricingService quotePricingService;
     private final RiskEngine riskEngine;
+    private final RecommendationService recommendationService;
 
     public QuoteRequestService(
             QuoteRequestRepository quoteRequestRepository,
@@ -80,7 +83,8 @@ public class QuoteRequestService {
             QuotationService quotationService,
             QuotationRepository quotationRepository,
             QuotePricingService quotePricingService,
-            RiskEngine riskEngine) {
+            RiskEngine riskEngine,
+            RecommendationService recommendationService) {
         this.quoteRequestRepository = quoteRequestRepository;
         this.lineRepository = lineRepository;
         this.companyCustomerRepository = companyCustomerRepository;
@@ -94,6 +98,7 @@ public class QuoteRequestService {
         this.quotationRepository = quotationRepository;
         this.quotePricingService = quotePricingService;
         this.riskEngine = riskEngine;
+        this.recommendationService = recommendationService;
     }
 
     @Transactional
@@ -116,6 +121,22 @@ public class QuoteRequestService {
 
     public QuoteRequestResponse getForCustomer(long customerUserId, long requestId) {
         return toResponse(requireOwned(customerUserId, requestId));
+    }
+
+    public List<CustomerRecommendationResponse> recommendations(long customerUserId, long requestId) {
+        QuoteRequest request = requireOwned(customerUserId, requestId);
+        List<Long> productIds = new ArrayList<>();
+        for (QuoteRequestLine line : lineRepository.findByRequest(request.id())) {
+            productIds.add(line.productId());
+        }
+        CustomerTier tier = standingTier(request.sellerCompanyId(), customerUserId);
+        Long priceListId = null;
+        try {
+            priceListId = quotePricingService.requirePriceList(request.sellerCompanyId(), tier.id()).id();
+        } catch (RuntimeException ignored) {
+            priceListId = null;
+        }
+        return recommendationService.recommendForCart(request.sellerCompanyId(), priceListId, productIds);
     }
 
     @Transactional

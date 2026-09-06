@@ -2,6 +2,7 @@ package com.dealflow360.quotation.service;
 
 import com.dealflow360.catalog.model.Product;
 import com.dealflow360.catalog.repository.ProductRepository;
+import com.dealflow360.quoterequest.dto.CustomerRecommendationResponse;
 import com.dealflow360.quotation.dto.RecommendationResponse;
 import com.dealflow360.quotation.model.Quotation;
 import com.dealflow360.quotation.model.QuotationLine;
@@ -89,5 +90,47 @@ public class RecommendationService {
         return scored.stream().limit(TOP_N).map(item -> item.response).toList();
     }
 
+    public List<CustomerRecommendationResponse> recommendForCart(
+            long companyId, Long priceListId, List<Long> productIdsOnCart) {
+        Set<Long> onCart = new HashSet<>(productIdsOnCart);
+        List<UpsellRule> rules = upsellRuleRepository.findActiveByCompanyAndTriggerIds(companyId, onCart);
+        List<CustomerScored> scored = new ArrayList<>();
+        Set<Long> seenSuggested = new HashSet<>();
+        for (UpsellRule rule : rules) {
+            if (onCart.contains(rule.suggestedProductId()) || seenSuggested.contains(rule.suggestedProductId())) {
+                continue;
+            }
+            Product suggested = productRepository.findById(rule.suggestedProductId(), companyId).orElse(null);
+            if (suggested == null || !suggested.active()) {
+                continue;
+            }
+            BigDecimal unitPrice = priceListId == null
+                    ? suggested.basePrice()
+                    : quotePricingService.resolveUnitPrice(companyId, priceListId, suggested, null);
+            if (unitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal expectedMarginPct =
+                    QuotePricingService.percent(unitPrice.subtract(suggested.costPrice()), unitPrice);
+            if (expectedMarginPct.compareTo(rule.minMarginPct()) < 0) {
+                continue;
+            }
+            BigDecimal normalizedMargin = expectedMarginPct.divide(new BigDecimal("100"), 4, ROUNDING);
+            BigDecimal score = rule.score().add(rule.promotionBoost()).add(normalizedMargin);
+            scored.add(new CustomerScored(
+                    new CustomerRecommendationResponse(
+                            suggested.id(),
+                            suggested.name(),
+                            rule.promotionBoost().compareTo(BigDecimal.ZERO) > 0,
+                            QuotePricingService.money(unitPrice)),
+                    score));
+            seenSuggested.add(suggested.id());
+        }
+        scored.sort(Comparator.comparing((CustomerScored item) -> item.score).reversed());
+        return scored.stream().limit(TOP_N).map(item -> item.response).toList();
+    }
+
     private record Scored(RecommendationResponse response, BigDecimal score) {}
+
+    private record CustomerScored(CustomerRecommendationResponse response, BigDecimal score) {}
 }

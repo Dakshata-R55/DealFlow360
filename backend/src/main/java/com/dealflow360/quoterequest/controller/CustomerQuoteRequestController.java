@@ -3,6 +3,7 @@ package com.dealflow360.quoterequest.controller;
 import com.dealflow360.auth.security.AuthPrincipal;
 import com.dealflow360.auth.security.SecurityAuth;
 import com.dealflow360.quoterequest.dto.CreateQuoteRequestBody;
+import com.dealflow360.quoterequest.dto.CustomerRecommendationResponse;
 import com.dealflow360.quoterequest.dto.PatchQuoteRequestBody;
 import com.dealflow360.quoterequest.dto.PatchQuoteRequestLineBody;
 import com.dealflow360.quoterequest.dto.QuoteRequestLineBody;
@@ -56,6 +57,14 @@ public class CustomerQuoteRequestController {
         AuthPrincipal principal = SecurityAuth.require(authentication);
         return ResponseEntity.ok(
                 ApiResponse.success(HttpStatus.OK, quoteRequestService.getForCustomer(principal.userId(), id)));
+    }
+
+    @GetMapping("/{id}/recommendations")
+    public ResponseEntity<ApiResponse<List<CustomerRecommendationResponse>>> recommendations(
+            Authentication authentication, @PathVariable long id) {
+        AuthPrincipal principal = SecurityAuth.require(authentication);
+        return ResponseEntity.ok(ApiResponse.success(
+                HttpStatus.OK, quoteRequestService.recommendations(principal.userId(), id)));
     }
 
     @PatchMapping("/{id}")
