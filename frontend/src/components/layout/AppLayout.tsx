@@ -44,6 +44,9 @@ function titleForPath(pathname: string) {
   if (pathname.startsWith('/admin/plans')) {
     return 'Plans'
   }
+  if (pathname.startsWith('/admin/users')) {
+    return 'Team'
+  }
   if (pathname.startsWith('/dashboard')) {
     return 'Dashboard'
   }

@@ -82,6 +82,9 @@ export function Sidebar() {
             <NavLink to="/admin/plans" className={linkClass}>
               Plans
             </NavLink>
+            <NavLink to="/admin/users" className={linkClass}>
+              Team
+            </NavLink>
           </>
         ) : null}
       </nav>

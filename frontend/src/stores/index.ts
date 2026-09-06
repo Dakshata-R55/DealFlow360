@@ -10,6 +10,7 @@ import './api/marketplaceApi'
 import './api/quoteRequestApi'
 import './api/fulfillmentApi'
 import './api/dashboardApi'
+import './api/adminUsersApi'
 
 export const store = configureStore({
   reducer: {

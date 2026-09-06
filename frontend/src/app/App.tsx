@@ -6,6 +6,7 @@ import { CatalogPage } from '../features/admin/CatalogPage'
 import { PlansPage } from '../features/admin/PlansPage'
 import { PoliciesPage } from '../features/admin/PoliciesPage'
 import { ProductDetailPage } from '../features/admin/ProductDetailPage'
+import { UsersPage } from '../features/admin/UsersPage'
 import { WarehousesPage } from '../features/admin/WarehousesPage'
 import { CustomerSignupPage } from '../features/auth/CustomerSignupPage'
 import { LoginPage } from '../features/auth/LoginPage'
@@ -67,6 +68,7 @@ export function App() {
                 <Route path="/admin/policies" element={<PoliciesPage />} />
                 <Route path="/admin/warehouses" element={<WarehousesPage />} />
                 <Route path="/admin/plans" element={<PlansPage />} />
+                <Route path="/admin/users" element={<UsersPage />} />
               </Route>
             </Route>
           </Route>

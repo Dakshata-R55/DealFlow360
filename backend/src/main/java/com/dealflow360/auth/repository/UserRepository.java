@@ -47,6 +47,26 @@ public class UserRepository {
               AND role IN ('SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS')
             ORDER BY name, id
             """;
+    private static final String FIND_INTERNAL_BY_COMPANY =
+            """
+            SELECT id, company_id, name, email, password_hash, role, active, created_at, updated_at
+            FROM users
+            WHERE company_id = ?
+              AND role IN ('ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS')
+            ORDER BY name, id
+            """;
+    private static final String FIND_BY_ID_AND_COMPANY =
+            """
+            SELECT id, company_id, name, email, password_hash, role, active, created_at, updated_at
+            FROM users
+            WHERE id = ? AND company_id = ?
+            """;
+    private static final String UPDATE_ACTIVE =
+            """
+            UPDATE users
+            SET active = ?
+            WHERE id = ? AND company_id = ?
+            """;
 
     private final DataSource dataSource;
 
@@ -135,6 +155,59 @@ public class UserRepository {
                     rows.add(map(resultSet));
                 }
                 return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public List<User> findInternalByCompany(long companyId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_INTERNAL_BY_COMPANY)) {
+            statement.setLong(1, companyId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<User> rows = new ArrayList<>();
+                while (resultSet.next()) {
+                    rows.add(map(resultSet));
+                }
+                return rows;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public Optional<User> findByIdAndCompany(long id, long companyId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(FIND_BY_ID_AND_COMPANY)) {
+            statement.setLong(1, id);
+            statement.setLong(2, companyId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(map(resultSet));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    public void updateActive(long id, long companyId, boolean active) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try (PreparedStatement statement = connection.prepareStatement(UPDATE_ACTIVE)) {
+            statement.setBoolean(1, active);
+            statement.setLong(2, id);
+            statement.setLong(3, companyId);
+            int updated = statement.executeUpdate();
+            if (updated == 0) {
+                throw new RuntimeException("User not found");
             }
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
